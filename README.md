@@ -14,7 +14,8 @@ grading improved.
 
 - Python 3.11 or newer (Windows: the `py` launcher).
 - Git.
-- [Claude Code](https://claude.com/claude-code), which runs the agent skills.
+- An agent harness that runs the skills: [OpenCode](https://opencode.ai)
+  (the repo ships its plugin) or [Claude Code](https://claude.com/claude-code).
 
 ## Three steps
 
@@ -28,7 +29,8 @@ py -m pip install -r requirements.txt
 your Figma screen exports (png) and any decks (pptx) into `PUT_FILES_HERE/`.
 Any order, any names.
 
-**3. Run the skill.** Open Claude Code in the project folder and type:
+**3. Run the skill.** Open OpenCode or Claude Code in the project folder and
+type:
 
 ```
 /tc-help
