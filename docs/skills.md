@@ -1,7 +1,8 @@
 # Skills
 
-Invoke a skill by name in Claude Code (`/tc-align`) or describe the job and
-let `/tc-help` route it. One skill per job; each has an in-depth guide.
+Invoke a skill by name in OpenCode or Claude Code (`/tc-align`) or describe
+the job and let `/tc-help` route it. One skill per job; each has an in-depth
+guide.
 
 | Skill | Use it when | Guide |
 |---|---|---|
