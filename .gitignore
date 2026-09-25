@@ -1,0 +1,24 @@
+﻿build/
+__pycache__/
+.superpowers/
+.playwright-cli/
+.od-skills/
+tools/opencode/node_modules/
+.claude/worktrees/
+tools/app/web/node_modules/
+
+PUT_FILES_HERE/*
+!PUT_FILES_HERE/README.md
+
+# ISO/IEC/IEEE standards are copyright-protected reference material, not repo
+# artifacts (spec 2026-08-27-tc-rubric-design 2.1). The rubric derived from
+# them IS tracked, at standards/rubric/.
+#
+# Ignore EVERYTHING under standards/ and re-include only the rubric directory.
+# `standards/*.pdf` was neither recursive nor format-agnostic: a nested
+# standards/29119/*.pdf, or a .docx / .zip copy of the same document, would
+# have been committed. The copyright constraint is the whole reason this line
+# exists, so it defaults to deny.
+standards/**
+!standards/rubric/
+!standards/rubric/**

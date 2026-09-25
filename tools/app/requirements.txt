@@ -1,0 +1,24 @@
+# Operator app only. The rest of tc-copilot's tooling remains stdlib + PyYAML,
+# openpyxl and pdfplumber. Install with:
+#   py -m pip install -r tools/app/requirements.txt
+fastapi>=0.115
+uvicorn>=0.30
+
+# Powers the chat proxy: opencode_sidecar.py health-checks the sidecar and
+# server.py streams its /event SSE through httpx. Optional at import time
+# (opencode_sidecar degrades to "unavailable" if it's missing) but required
+# for the chat feature to actually work.
+httpx
+
+# Test-only, NOT a runtime requirement of server.py: tools/test_app_server.py
+# uses fastapi.testclient.TestClient, which needs an HTTP client package that
+# fastapi/uvicorn above do not pull in. Which one depends on the installed
+# starlette version -- httpx2 on starlette >=1.0 (e.g. 1.3.x), httpx on older
+# starlette. Install whichever `py tools/test_app_server.py` reports missing,
+# e.g.:
+#   py -m pip install httpx2
+# The test file itself guards the TestClient import with a try/except that
+# catches both ImportError (fastapi absent) and RuntimeError (fastapi present
+# but its testclient's own HTTP client dependency absent -- that is how
+# starlette.testclient reports it) and [SKIP]s cleanly either way. It does not
+# hard-code either package name.

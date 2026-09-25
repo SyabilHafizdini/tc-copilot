@@ -1,0 +1,61 @@
+project:
+  # Set these two for a new project before running any skill.
+  name: "Example Project"
+  code: EXP
+  okf_version: "0.1"
+
+ids:
+  # Matches the existing manual-TC convention some projects arrive with (see
+  # tools/reference-format.xlsx): <sub-US id>-<AC id>-<seq>, e.g. 1.1.3.1.1-AC5-01
+  tc_format: "{story_num}-AC{ac_num:02d}-{seq:02d}"
+  tc_format_uat: "UAT-{story_num}-AC{ac_num:02d}-{seq:02d}"
+  frozen: false          # set true by tooling after first generation
+  story_prefix: "US-"
+  resolution_prefix: "R-"
+
+export:
+  # Header-block values for the SIT workbook. Layout reference:
+  # tools/reference-format-sit.xlsx.
+  project_code: EXP-0001
+  project_name: Example Project
+  system_name: Example System
+  module_prefix: EXM
+  roles: "Viewer, Reviewer, Approver"
+  prepared_by: tc-copilot
+
+generation:
+  max_quality_retries: 2
+  quality_min_dimension: 2
+  quality_min_average: 3.0
+  render_language: "en"
+  export_formats: [md, xlsx]
+
+alignment:
+  suggested_order: prd
+  require_glossary_confirmation: false
+
+model:
+  # Target deployment per tc-copilot-spec §14; local development runs under
+  # whatever harness invokes the skills. No LLM calls exist in tools/wiki.py.
+  gateway: example-gateway
+  chat_model: example-chat-model
+  vision_model: example-vision-model
+  temperature: 0.6
+  top_p: 0.95
+  context_limit_tokens: 180000
+
+provenance:
+  agent_git_name: "tc-agent"
+  agent_git_email: "tc-agent@internal"
+  # The human operator's signature. Every human-gated command is run
+  # `--by <this>`; it is the assertion's authority, so set it deliberately.
+  human: "operator"
+
+# Rubric scoring (ISO/IEC/IEEE 29119-4 rubric; see docs/skills/tc-rubric.md).
+rubric:
+  version: v1
+  threshold: 70          # --strict exits 1 below this
+  count_infeasible: false   # 29119-4 6.1 requires this choice be DEFINED
+  blend:
+    tier1: 40
+    tier2: 60

@@ -1,0 +1,4 @@
+{
+  "_comment": "Fixture for tools/smoke.py's seal-fence CLI check (I1). Read only when TC_MANIFEST_OVERRIDE points here. An empty tc_hashes means every real TC file compares as unsealed, without ever touching a real TC or the real manifest.json.",
+  "tc_hashes": {}
+}

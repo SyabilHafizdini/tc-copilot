@@ -1,0 +1,190 @@
+# Test-case quality rubric v1.
+#
+# An ORIGINAL work derived from the structure of ISO/IEC/IEEE 29119-4:2021
+# (Software testing - Part 4: Test techniques). It cites clause numbers and
+# restates obligations in our own words. It reproduces none of the standard's
+# prose, tables, figures, or worked examples; the standard itself is
+# copyright-protected and is not tracked in this repo.
+#
+# Provenance rules (spec 2.2):
+#   source: standard  - the obligation is stated in the cited clause
+#   source: derived   - we operationalise a cited clause; wording and scoring
+#                       rule are ours
+# There is no 'house' tier. A dimension that cannot cite a clause does not
+# belong here.
+version: v1
+standard: "ISO/IEC/IEEE 29119-4:2021"
+
+# Techniques whose coverage-item kinds make sense together. Used by T1.8 to
+# score FIT, never to rank techniques against each other - Annex F states there
+# is no consensus on relative effectiveness, so ranking would contradict the
+# source.
+technique_fit:
+  UC:  [scenario]
+  EP:  [partition]
+  BVA: [boundary]
+  DT:  [rule]
+  ST:  [transition]
+  PW:  [pair]
+  ERR: [partition, boundary, rule, transition, pair, scenario]
+
+dimensions:
+  # ---------------------------------------------------------------- tier 1
+  - id: T1.1
+    tier: 1
+    name: Coverage-item linkage
+    source: standard
+    clause: "29119-4 5.1 (TD2/TD3)"
+    scored: [mech]
+    weight: 15
+    obligation: >-
+      The test case names the coverage item(s) it exercises, and every one of
+      them resolves in the scope's asserted test model.
+
+  - id: T1.2
+    tier: 1
+    name: Test-basis traceability
+    source: standard
+    clause: "29119-4 5.2.12"
+    scored: [mech]
+    weight: 15
+    obligation: >-
+      The test case traces to a live acceptance criterion or business rule that
+      exists in the story. Each atomic requirement is itself a coverage item.
+
+  - id: T1.3
+    tier: 1
+    name: Input data specificity
+    source: derived
+    clause: "29119-4 5.2.2.3 b)"
+    scored: [mech]
+    weight: 12
+    obligation: >-
+      Every input variable carries a concrete value. Placeholder or vague data
+      ("valid data", "some text", "TBD") does not identify an input value.
+
+  - id: T1.4
+    tier: 1
+    name: Expected-result determinacy
+    source: derived
+    clause: "29119-4 5.2.2.3 c)"
+    scored: [mech, judge]
+    weight: 15
+    obligation: >-
+      The test case states exactly one unambiguous, observable expected
+      outcome.
+
+  - id: T1.5
+    tier: 1
+    name: Expected result from the test basis
+    source: standard
+    clause: "29119-4 5.2.3.3 d)"
+    scored: [judge]
+    weight: 18
+    obligation: >-
+      The expected result must be derived from the test basis - traceable to
+      the AC or business-rule text that governs the case. Not invented, and
+      not a restatement of the action the steps already describe.
+
+  - id: T1.7
+    tier: 1
+    name: Input and state completeness
+    source: derived
+    clause: "29119-4 5.2.3.3 c)"
+    scored: [mech, judge]
+    weight: 10
+    obligation: >-
+      The test case assigns a value to every variable it depends on beyond the
+      coverage item's own inputs, including its starting state - nothing is
+      left unset.
+
+  - id: T1.8
+    tier: 1
+    name: Technique fit
+    source: derived
+    clause: "29119-4 5.1, Annex F"
+    scored: [mech, judge]
+    weight: 10
+    obligation: >-
+      The tagged technique matches the shape of what is being tested, per
+      technique_fit. Scores fit only - never the relative merit of techniques.
+
+  - id: T1.9
+    tier: 1
+    name: One invalid input per negative case
+    source: derived
+    clause: "29119-4 5.1 (valid and invalid test cases)"
+    scored: [mech]
+    weight: 5
+    obligation: >-
+      A negative test case invalidates exactly one input; stacking more than
+      one risks a fault on one input hiding a fault on another.
+
+  # ---------------------------------------------------------------- tier 2
+  - id: T2.1
+    tier: 2
+    name: Per-technique coverage
+    source: standard
+    clause: "29119-4 6.1, 6.2.1-6.2.12"
+    scored: [mech]
+    weight: 40
+    obligation: >-
+      C = (N / T) x 100 for every technique present in the test model; N
+      counts what the executed suite actually exercises, T counts everything
+      that technique identified as in scope.
+
+  - id: T2.2
+    tier: 2
+    name: Requirements coverage
+    source: standard
+    clause: "29119-4 5.2.12, 6.2.12"
+    scored: [mech]
+    weight: 25
+    obligation: >-
+      Every active acceptance criterion, being an atomic requirement and
+      therefore a coverage item, is covered by at least one active test case.
+
+  - id: T2.4
+    tier: 2
+    name: Infeasible-item discipline
+    source: derived
+    clause: "29119-4 6.1"
+    scored: [mech]
+    weight: 10
+    obligation: >-
+      Every coverage item excluded from T has a recorded reason explaining why
+      it cannot be covered.
+
+  - id: T2.5
+    tier: 2
+    name: Valid and invalid balance
+    source: derived
+    clause: "29119-4 5.1 (valid and invalid test cases)"
+    scored: [mech, judge]
+    weight: 10
+    obligation: >-
+      The set exercises invalid partitions and error paths, not only valid
+      ones.
+
+  - id: T2.6
+    tier: 2
+    name: Quality-characteristic spread
+    source: derived
+    clause: "29119-4 Annex A"
+    scored: [mech, judge]
+    weight: 8
+    obligation: >-
+      Where ISO/IEC 25010 characteristics beyond functional suitability apply
+      to the scope, the set exercises them rather than functional suitability
+      alone.
+
+  - id: T2.7
+    tier: 2
+    name: Redundancy
+    source: derived
+    clause: "29119-4 6.1"
+    scored: [mech]
+    weight: 7
+    obligation: >-
+      A test case whose coverage-item set duplicates another's contributes
+      nothing to N.

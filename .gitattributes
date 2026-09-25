@@ -1,0 +1,16 @@
+* text eol=lf
+*.xlsx binary
+*.pptx binary
+*.docx binary
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.zip binary
+
+# Built, committed viewer bundle: Vite's build output mixes line endings, so
+# the eol=lf rule above rewrites it on every add/commit and a hash taken right
+# after `npm run build:viewer` never matches a hash taken after checkout.
+# Treat it as an opaque blob so git stops touching its bytes.
+tools/app/web/dist/viewer.html binary
+tools/app/web/dist-app/index.html binary

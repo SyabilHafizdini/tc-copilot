@@ -1,0 +1,29 @@
+# FIXTURE — not a real render scope.
+# story.md beside this file is a draft story with no confirmed coverage_map, so
+# pointing the SIT driver at this spec must be REFUSED by the coverage fence in
+# render_sit.py. The story is a FIXTURE, not a project story, so this check
+# runs in any bundle -- an empty base branch included.
+# Used by smoke.py (via TC_SIT_SPEC_DIR) to prove the fence is enforced in code
+# and not merely written down in the tc-generate-sit skill.
+story: /tools/fixtures/sit_specs_gate/story.md
+module: /modules/fixture-module.md
+figma: fixture-page
+out: build/scratch/gate-fixture
+ac_prefix: "9.9.9.9"
+scenario_id: SC-FIXTURE-{ac}-{seq:02d}
+generator_version: "0.0.0"
+pre_common: |-
+  1. Fixture precondition.
+post_default: No system state changed (read-only verification).
+test_cases:
+- ac: AC1
+  seq: 1
+  technique: UC
+  priority: P1
+  area: Fixture
+  title: Fixture test case
+  objective: Must never be rendered — the coverage fence refuses first.
+  steps: |-
+    1. Do nothing.
+  expected: |-
+    1. Nothing happens.

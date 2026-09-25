@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Draft-First Generation Pipeline</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f6f5f1;
+    --ink: #1d2230;
+    --muted: #5e6472;
+    --line: #c9cbd1;
+    --lane: #ecebe6;
+    --box: #ffffff;
+    --new: #0e7c78;
+    --new-soft: #dff1ef;
+    --human: #b0701c;
+    --human-soft: #f7e9d3;
+    --code-bg: #e9e8e2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171a21; --ink: #e6e7ea; --muted: #a2a7b3; --line: #3d424e;
+      --lane: #1f232c; --box: #262b36; --new: #4fc5bf; --new-soft: #17332f;
+      --human: #e0a85a; --human-soft: #3a2c16; --code-bg: #2a2f3a;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #171a21; --ink: #e6e7ea; --muted: #a2a7b3; --line: #3d424e;
+    --lane: #1f232c; --box: #262b36; --new: #4fc5bf; --new-soft: #17332f;
+    --human: #e0a85a; --human-soft: #3a2c16; --code-bg: #2a2f3a;
+    color-scheme: dark;
+  }
+  html { height: 100%; } img { max-width: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; font-size: 15px; line-height: 1.5; margin: 0; }
+  .wrap { max-width: 960px; margin: 0 auto; padding-inline: 16px; padding-block: 28px 56px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; text-wrap: balance; }
+  h2 { font-size: 17px; font-weight: 600; margin: 40px 0 10px; }
+  p { max-width: 68ch; margin: 0 0 10px; }
+  .lede { color: var(--muted); }
+  code, .mono { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 0.88em; }
+  code { background: var(--code-bg); padding: 1px 5px; border-radius: 3px; }
+  .eyebrow { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+
+  .timeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0 8px; }
+  .moment { border-top: 3px solid var(--line); padding-top: 8px; }
+  .moment.first { border-top-color: var(--new); }
+  .moment.gate { border-top-color: var(--human); }
+  .moment .t { font-family: "IBM Plex Mono", monospace; font-size: 12px; color: var(--muted); }
+  .moment .what { font-weight: 600; margin: 2px 0; }
+  .moment .how { font-size: 13px; color: var(--muted); }
+  @media (max-width: 560px) { .timeline { grid-template-columns: 1fr; } }
+
+  figure { margin: 22px 0 0; }
+  .scroll { overflow-x: auto; }
+  svg { display: block; max-width: 100%; height: auto; min-width: 640px; }
+  figcaption { font-size: 13px; color: var(--muted); margin-top: 8px; max-width: 70ch; }
+  .lane-bg { fill: var(--lane); }
+  .lane-title { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; fill: var(--muted); }
+  .box rect { fill: var(--box); stroke: currentColor; stroke-width: 1; }
+  .box text { font-size: 12px; fill: var(--ink); }
+  .box .cmd { font-family: "IBM Plex Mono", monospace; font-size: 11px; fill: var(--muted); }
+  .box.new rect { stroke: var(--new); stroke-width: 2; fill: var(--new-soft); }
+  .box.human rect { stroke: var(--human); stroke-width: 2; fill: var(--human-soft); }
+  .box.human.span rect { stroke-dasharray: 5 4; fill: none; }
+  .tag { font-size: 9px; font-weight: 600; letter-spacing: 0.08em; fill: var(--new); }
+  .llm { font-size: 10px; fill: var(--muted); }
+  .edge { stroke: currentColor; stroke-width: 1.2; fill: none; }
+  .edge.new { stroke: var(--new); stroke-width: 1.6; }
+  .edge-label { font-size: 10px; fill: var(--muted); }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .sw { display: inline-block; width: 14px; height: 10px; vertical-align: -1px; margin-right: 5px; border: 1.5px solid currentColor; border-radius: 2px; }
+  .sw.new { border-color: var(--new); background: var(--new-soft); }
+  .sw.human { border-color: var(--human); background: var(--human-soft); }
+
+  ol.stages { padding-left: 0; list-style: none; counter-reset: st; margin: 0; }
+  ol.stages li { counter-increment: st; display: grid; grid-template-columns: 32px 1fr; gap: 10px; padding: 12px 0; border-top: 1px solid var(--line); }
+  ol.stages li::before { content: counter(st); font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--muted); padding-top: 2px; }
+  ol.stages li:last-child { border-bottom: 1px solid var(--line); }
+  ol.stages .name { font-weight: 600; }
+  ol.stages .name .pill { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; color: var(--new); border: 1px solid var(--new); border-radius: 3px; padding: 1px 5px; margin-left: 8px; vertical-align: 2px; }
+  ol.stages .name .pill.h { color: var(--human); border-color: var(--human); }
+  ol.stages p { margin: 3px 0 0; font-size: 14px; }
+  ol.stages .out { color: var(--muted); font-size: 13px; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+  td:first-child { white-space: nowrap; }
+  .tbl { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">tc-copilot · SIT and UAT generation · proposal</div>
+  <h1>Draft-first generation pipeline</h1>
+  <p class="lede">The same protocol as today, with the workbook delivered twice: a labelled draft the moment the set is sealed, and the graded final with a change log when round 2 finishes. Round 2 re-reads only what the improver touched.</p>
+
+  <div class="timeline">
+    <div class="moment gate">
+      <div class="t">T0</div>
+      <div class="what">You confirm the coverage card</div>
+      <div class="how">Coverage map and 29119-4 test model, one card, one assert.</div>
+    </div>
+    <div class="moment first">
+      <div class="t">T0 + one LLM pass</div>
+      <div class="what">Draft workbook in your hands</div>
+      <div class="how">Spec written, rendered, sealed, exported as DRAFT round 0. Review starts.</div>
+    </div>
+    <div class="moment">
+      <div class="t">T0 + about seven serial passes</div>
+      <div class="what">Final workbook plus change log</div>
+      <div class="how">Two judge rounds and one improver ran while you reviewed. Change Log sheet lists every difference and why.</div>
+    </div>
+  </div>
+
+  <figure>
+    <div class="scroll">
+    <svg viewBox="0 0 920 1090" role="img" aria-label="Twelve-stage pipeline across three lanes, human, agent LLM and deterministic tooling. New stages are the draft export after the first seal, the carry-forward round 2 packs, the deterministic diff, and the final export that refuses without a strict score.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+        </marker>
+        <marker id="arr-new" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" style="fill: var(--new)"/>
+        </marker>
+      </defs>
+
+      <!-- lanes -->
+      <rect class="lane-bg" x="10" y="10" width="230" height="1070" rx="6"/>
+      <rect class="lane-bg" x="245" y="10" width="290" height="1070" rx="6"/>
+      <rect class="lane-bg" x="540" y="10" width="370" height="1070" rx="6"/>
+      <text class="lane-title" x="125" y="36" text-anchor="middle">Human</text>
+      <text class="lane-title" x="390" y="36" text-anchor="middle">Agent (LLM)</text>
+      <text class="lane-title" x="725" y="36" text-anchor="middle">Tooling (deterministic)</text>
+
+      <!-- R1 y=70 -->
+      <g class="box">
+        <rect x="550" y="70" width="350" height="54" rx="4"/>
+        <text x="725" y="92" text-anchor="middle">Gate</text>
+        <text class="cmd" x="725" y="110" text-anchor="middle">wiki gate --story &lt;id&gt;</text>
+      </g>
+      <path class="edge" d="M725,124 V155" marker-end="url(#arr)"/>
+
+      <!-- R2 y=155 -->
+      <g class="box">
+        <rect x="550" y="155" width="350" height="54" rx="4"/>
+        <text x="725" y="177" text-anchor="middle">Propose coverage map and test model</text>
+        <text class="cmd" x="725" y="195" text-anchor="middle">coverage --propose · testmodel --propose</text>
+      </g>
+      <path class="edge" d="M550,182 H530" marker-end="url(#arr)"/>
+      <g class="box">
+        <rect x="250" y="155" width="280" height="54" rx="4"/>
+        <text x="390" y="177" text-anchor="middle">Correct the map, enrich the model, emit card</text>
+        <text class="llm" x="390" y="195" text-anchor="middle">LLM pass 1 · build/cards/coverage-&lt;id&gt;-NNN.json</text>
+      </g>
+      <path class="edge" d="M390,209 V224 H125 V240" marker-end="url(#arr)"/>
+
+      <!-- R3 y=240 -->
+      <g class="box human">
+        <rect x="20" y="240" width="210" height="54" rx="4"/>
+        <text x="125" y="262" text-anchor="middle">Confirm the coverage card</text>
+        <text class="llm" x="125" y="280" text-anchor="middle">the one human gate before rendering</text>
+      </g>
+      <path class="edge" d="M230,267 H550" marker-end="url(#arr)"/>
+      <g class="box">
+        <rect x="550" y="240" width="350" height="54" rx="4"/>
+        <text x="725" y="262" text-anchor="middle">Assert: coverage and model become confirmed</text>
+        <text class="cmd" x="725" y="280" text-anchor="middle">wiki assert story &lt;id&gt; --by &lt;you&gt; --card &lt;card&gt;</text>
+      </g>
+      <path class="edge" d="M725,294 V309 H390 V325" marker-end="url(#arr)"/>
+
+      <!-- R4 y=325 -->
+      <g class="box">
+        <rect x="250" y="325" width="280" height="54" rx="4"/>
+        <text x="390" y="347" text-anchor="middle">Write the spec, coverage_items on every entry</text>
+        <text class="llm" x="390" y="365" text-anchor="middle">LLM pass 2 · tools/sit_specs/&lt;id&gt;.yaml</text>
+      </g>
+      <path class="edge" d="M530,352 H550" marker-end="url(#arr)"/>
+      <g class="box">
+        <rect x="550" y="325" width="350" height="54" rx="4"/>
+        <text x="725" y="347" text-anchor="middle">Validate, render, seal</text>
+        <text class="cmd" x="725" y="365" text-anchor="middle">render_sit.py --story &lt;id&gt; · wiki seal</text>
+      </g>
+      <path class="edge new" d="M725,379 V410" marker-end="url(#arr-new)"/>
+
+      <!-- R5 y=410 DRAFT EXPORT -->
+      <g class="box new">
+        <rect x="550" y="410" width="350" height="54" rx="4"/>
+        <text class="tag" x="560" y="423">NEW</text>
+        <text x="725" y="432" text-anchor="middle">Draft export, marked DRAFT round 0, snapshot kept</text>
+        <text class="cmd" x="725" y="450" text-anchor="middle">wiki export --story &lt;id&gt; --name &lt;n&gt; --draft</text>
+      </g>
+      <path class="edge new" d="M550,437 H230" marker-end="url(#arr-new)"/>
+      <g class="box human">
+        <rect x="20" y="410" width="210" height="54" rx="4"/>
+        <text x="125" y="432" text-anchor="middle">First cut lands</text>
+        <text class="llm" x="125" y="450" text-anchor="middle">build/inventory/sit/&lt;n&gt;_&lt;ts&gt;.xlsx</text>
+      </g>
+      <path class="edge" d="M725,464 V495" marker-end="url(#arr)"/>
+
+      <!-- human span R6..R11 -->
+      <g class="box human span">
+        <rect x="20" y="495" width="210" height="394" rx="4"/>
+        <text x="125" y="680" text-anchor="middle">Review the draft</text>
+        <text class="llm" x="125" y="698" text-anchor="middle">while the grade loop runs</text>
+      </g>
+
+      <!-- R6 y=495 round 1 pack + judges -->
+      <g class="box">
+        <rect x="550" y="495" width="350" height="54" rx="4"/>
+        <text x="725" y="517" text-anchor="middle">Round 1: score the mechanical dimensions, write packs</text>
+        <text class="cmd" x="725" y="535" text-anchor="middle">eval_rubric.py --story &lt;id&gt; --round 1 --pack</text>
+      </g>
+      <path class="edge" d="M550,522 H530" marker-end="url(#arr)"/>
+      <g class="box">
+        <rect x="250" y="495" width="280" height="54" rx="4"/>
+        <text x="390" y="517" text-anchor="middle">Four judge lenses A B C D, in parallel</text>
+        <text class="llm" x="390" y="535" text-anchor="middle">LLM passes 3 to 6 · judgments/&lt;id&gt;-r1-&lt;L&gt;.json</text>
+      </g>
+      <path class="edge" d="M390,549 V564 H725 V580" marker-end="url(#arr)"/>
+
+      <!-- R7 y=580 merge + improver -->
+      <g class="box">
+        <rect x="550" y="580" width="350" height="54" rx="4"/>
+        <text x="725" y="602" text-anchor="middle">Merge verdicts: round 1 score and gap report</text>
+        <text class="cmd" x="725" y="620" text-anchor="middle">--round 1 · &lt;id&gt;-r1-score.json · &lt;id&gt;-r1-gaps.md</text>
+      </g>
+      <path class="edge" d="M550,607 H530" marker-end="url(#arr)"/>
+      <g class="box">
+        <rect x="250" y="580" width="280" height="54" rx="4"/>
+        <text x="390" y="602" text-anchor="middle">Improver reads the gaps, proposes a patch</text>
+        <text class="llm" x="390" y="620" text-anchor="middle">LLM pass 7 · &lt;id&gt;-r1-patch.json (set / add ops)</text>
+      </g>
+      <path class="edge" d="M390,634 V649 H725 V665" marker-end="url(#arr)"/>
+
+      <!-- R8 y=665 apply -->
+      <g class="box">
+        <rect x="550" y="665" width="350" height="54" rx="4"/>
+        <text x="725" y="687" text-anchor="middle">Apply the patch, re-render, re-seal</text>
+        <text class="cmd" x="725" y="705" text-anchor="middle">--apply-patch · render_sit.py --force · wiki seal</text>
+      </g>
+      <path class="edge new" d="M725,719 V750" marker-end="url(#arr-new)"/>
+
+      <!-- R9 y=750 round 2 carry-forward -->
+      <g class="box new">
+        <rect x="550" y="750" width="350" height="54" rx="4"/>
+        <text class="tag" x="560" y="763">NEW</text>
+        <text x="725" y="772" text-anchor="middle">Round 2 packs: touched TCs only, r1 verdicts carried</text>
+        <text class="cmd" x="725" y="790" text-anchor="middle">--round 2 --pack reads r1-patch.json for the touched ids</text>
+      </g>
+      <path class="edge new" d="M550,777 H530" marker-end="url(#arr-new)"/>
+      <g class="box">
+        <rect x="250" y="750" width="280" height="54" rx="4"/>
+        <text x="390" y="772" text-anchor="middle">A B C on changed and added TCs, D on the whole set</text>
+        <text class="llm" x="390" y="790" text-anchor="middle">LLM passes 8 to 11, smaller packs</text>
+      </g>
+      <path class="edge" d="M390,804 V819 H725 V835" marker-end="url(#arr)"/>
+
+      <!-- R10 y=835 merge r2 + verify -->
+      <g class="box">
+        <rect x="550" y="835" width="350" height="54" rx="4"/>
+        <text x="725" y="857" text-anchor="middle">Merge round 2, delta; regression restores round 1; verify</text>
+        <text class="cmd" x="725" y="875" text-anchor="middle">--round 2 · lint · rtm · coverage · testmodel · eval_golden · --strict</text>
+      </g>
+      <path class="edge new" d="M725,889 V920" marker-end="url(#arr-new)"/>
+
+      <!-- R11 y=920 diff -->
+      <g class="box new">
+        <rect x="550" y="920" width="350" height="54" rx="4"/>
+        <text class="tag" x="560" y="933">NEW</text>
+        <text x="725" y="942" text-anchor="middle">Diff the sealed set against the draft snapshot</text>
+        <text class="cmd" x="725" y="960" text-anchor="middle">eval_rubric.py --story &lt;id&gt; --diff → &lt;id&gt;-changes.md / .json</text>
+      </g>
+      <path class="edge new" d="M725,974 V1005" marker-end="url(#arr-new)"/>
+
+      <!-- R12 y=1005 final export -->
+      <g class="box new">
+        <rect x="550" y="1005" width="350" height="54" rx="4"/>
+        <text class="tag" x="560" y="1018">NEW</text>
+        <text x="725" y="1027" text-anchor="middle">Final export: refuses without a strict score; fills Change Log</text>
+        <text class="cmd" x="725" y="1045" text-anchor="middle">wiki export --story &lt;id&gt; --name &lt;n&gt;</text>
+      </g>
+      <path class="edge new" d="M550,1032 H230" marker-end="url(#arr-new)"/>
+      <g class="box human">
+        <rect x="20" y="1005" width="210" height="54" rx="4"/>
+        <text x="125" y="1027" text-anchor="middle">Final workbook and change log</text>
+        <text class="llm" x="125" y="1045" text-anchor="middle">score, delta, every changed field and why</text>
+      </g>
+    </svg>
+    </div>
+    <figcaption>Twelve stages, three lanes. Stages 1 to 4 and 6 to 8 are today's protocol unchanged. The four teal stages are the proposal: a labelled draft export at stage 5, carry-forward round 2 packs at stage 9, a deterministic diff at stage 11, and a final export at stage 12 that refuses without a strict score.</figcaption>
+    <div class="legend">
+      <span><span class="sw new"></span>new in this proposal</span>
+      <span><span class="sw human"></span>human gate or human deliverable</span>
+      <span><span class="sw"></span>existing stage, unchanged</span>
+    </div>
+  </figure>
+
+  <h2>Stage by stage</h2>
+  <ol class="stages">
+    <li><div><div class="name">Gate</div><p>Refuses unless the story is aligned with acceptance criteria. The fix for a block is alignment, never a flag.</p></div></li>
+    <li><div><div class="name">Propose coverage map and test model</div><p>Deterministic scaffolds, then the agent corrects the map and enriches the model with invalid partitions, both-side boundaries, rule rows, transitions and scenarios. Everything stays proposed.</p><p class="out">LLM pass 1. Output: one coverage card carrying the map, gap dispositions and the test model.</p></div></li>
+    <li><div><div class="name">Confirm the card <span class="pill h">HUMAN</span></div><p>You confirm or revise. The assert flips coverage and the model to confirmed and refuses if the card and the story file disagree.</p></div></li>
+    <li><div><div class="name">Write the spec, render, seal</div><p>One base test case per AC plus technique extras, each naming coverage items. The renderer validates the whole spec before writing anything. Seal records the hashes.</p><p class="out">LLM pass 2. Output: <code>testcases/**</code> and manifest entries.</p></div></li>
+    <li><div><div class="name">Draft export <span class="pill">NEW</span></div><p>Writes the org workbook with a visible DRAFT / round 0 mark in the header and the file name, commits as tc-agent, and stores a snapshot of the sealed set (id, hash, the diffable fields) plus the seal commit hash. This is the first cut. <code>wiki next</code> names it as the next command so a weaker model cannot skip it.</p><p class="out">Output: <code>build/inventory/sit/&lt;n&gt;_&lt;ts&gt;.xlsx</code>, <code>build/rubric/&lt;id&gt;-draft.json</code>.</p></div></li>
+    <li><div><div class="name">Round 1: pack and judge</div><p>The engine scores the mechanical dimensions and writes four packs. Four judge subagents read one pack each and write verdicts. A verdict on the wrong dimension, unknown test case or wrong rubric hash is rejected.</p><p class="out">LLM passes 3 to 6, in parallel.</p></div></li>
+    <li><div><div class="name">Merge, then improve</div><p>The merge produces the round 1 score and the gap report: uncovered items, set-level dimensions below 3, per-test-case dimensions below 3 with the judge's rationale. The improver proposes a patch of set and add operations, each naming the gap it closes.</p><p class="out">LLM pass 7. Output: <code>&lt;id&gt;-r1-patch.json</code>.</p></div></li>
+    <li><div><div class="name">Apply, re-render, re-seal</div><p>The patch is validated against the spec's key set and applied atomically. Forced re-render because a spec edit does not move pinned AC fragments. Seal again.</p></div></li>
+    <li><div><div class="name">Round 2 with carry-forward <span class="pill">NEW</span></div><p>The engine reads the round 1 patch to find the touched ids: set operations map to existing ids, add operations to new ids. For lenses A, B and C it copies the round 1 verdict of every untouched test case into the round 2 judgment file marked <code>carried_from: 1</code>, and builds packs containing only the touched and added cases. Lens D always gets the whole set. Judges read less; every verdict still describes exactly the content it judges.</p><p class="out">LLM passes 8 to 11, on smaller packs.</p></div></li>
+    <li><div><div class="name">Merge round 2, verify</div><p>Score, delta and the regression check. A lower round 2 restores the round 1 spec, re-renders and re-seals. Then lint, RTM, coverage, test model, golden eval, and <code>--round 2 --strict</code> against the configured threshold.</p></div></li>
+    <li><div><div class="name">Diff <span class="pill">NEW</span></div><p>LLM-free. Compares the current sealed set with the draft snapshot by test case id and field. Added cases, changed fields with old and new value, removed or retired cases, each joined to the patch operation and gap id that caused it. Header carries the round 1 to round 2 score delta. A restored round 1 yields one line saying so.</p><p class="out">Output: <code>build/rubric/&lt;id&gt;-changes.md</code> and <code>.json</code>.</p></div></li>
+    <li><div><div class="name">Final export <span class="pill">NEW</span></div><p>Plain export now refuses unless the latest score for the scope is non-PARTIAL, at or above the threshold, and was computed on the currently sealed set. The refusal is the prose rule from the skill promoted into the CLI. On success it fills the workbook's Change Log sheet, which the org format already has and which is empty today, from the changes file.</p><p class="out">Output: the final workbook, committed as tc-agent.</p></div></li>
+  </ol>
+
+  <h2>What is new, in one table</h2>
+  <div class="tbl">
+  <table>
+    <tr><th>Command</th><th>Behaviour</th><th>Files</th></tr>
+    <tr><td><code>wiki export --draft</code></td><td>Exports the sealed set with a DRAFT round 0 mark, commits, writes the diff snapshot. Skips the rubric gate honestly because the workbook says so.</td><td>wiki.py, wiki_suite.py</td></tr>
+    <tr><td><code>wiki export</code></td><td>Refuses without a strict, current score for the scope. Fills the Change Log sheet when a changes file exists.</td><td>wiki.py, wiki_suite.py</td></tr>
+    <tr><td><code>eval_rubric --round 2 --pack</code></td><td>Carries round 1 A, B, C verdicts forward for untouched test cases; packs hold touched cases only. Lens D unchanged.</td><td>eval_rubric.py, rubric_judge.py</td></tr>
+    <tr><td><code>eval_rubric --diff</code></td><td>Draft snapshot versus sealed set, by id and field, joined to patch ops and gap ids.</td><td>eval_rubric.py</td></tr>
+    <tr><td><code>wiki next</code></td><td>Names the draft export after the first seal and the final export after a strict score.</td><td>wiki_next.py</td></tr>
+    <tr><td>Skills and docs</td><td>Two lines each in tc-generate-sit, tc-generate-uat, tc-rubric and their guides.</td><td>.claude/skills, docs/skills</td></tr>
+  </table>
+  </div>
+
+  <h2>UAT, same shape</h2>
+  <p>The flow's asserted journey and scenario model stand in for the coverage card, the run-record script stands in for the spec, and the improver patches its wording tables. Stages 5 to 12 are identical with <code>--flow</code> in place of <code>--story</code>. The draft export lands after the first seal of the journey chain, and the touched ids for carry-forward come from the same patch file.</p>
+
+  <h2>What does not change</h2>
+  <p>Nothing renders before the card is confirmed. Only a human asserts. Exactly one improve round, no third. No verdict is ever edited. Generated files are never hand-edited. Every mutation is a tc-agent commit. The draft is the real rendered set, not a preview of something unconfirmed.</p>
+</div>
+</body>
+</html>

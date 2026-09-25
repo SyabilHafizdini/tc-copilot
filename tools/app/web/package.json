@@ -1,0 +1,42 @@
+{
+  "name": "tc-copilot-app-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build:viewer": "vite build --config vite.viewer.config.ts && node -e \"require('fs').renameSync('dist/index.html','dist/viewer.html')\" && py ../../app/bundle_check.py --write",
+    "build:app": "vite build --config vite.app.config.ts && node -e \"require('fs').renameSync('dist-app/app.html','dist-app/index.html')\" && py ../../app/bundle_check.py --write",
+    "build": "npm run build:viewer && npm run build:app",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "validate": "node scripts/validate.mjs",
+    "bake": "node scripts/bake.mjs"
+  },
+  "dependencies": {
+    "@opencode-ai/sdk": "^1.17.15",
+    "d3": "^7.9.0",
+    "lucide-react": "^0.577.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.4",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/d3": "^7.4.3",
+    "@types/node": "^25.3.5",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "jsdom": "^26.0.0",
+    "tailwindcss": "^4.1.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-singlefile": "^2.2.0",
+    "vitest": "^3.1.1"
+  }
+}
