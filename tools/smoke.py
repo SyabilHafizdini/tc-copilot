@@ -239,6 +239,7 @@ run(["tools/test_docx_stream.py"], name="unit: docx PRD stream + chunking")
 run(["tools/test_wiki_reference.py"], name="unit: reference material ingest")
 run(["tools/test_wiki_l13.py"], name="unit: L13 provenance + W6 token coverage")
 run(["tools/test_wiki_provenance.py"], name="unit: provenance backfill")
+run(["tools/test_wiki_flowdraft.py"], name="unit: flow-builder draft import")
 
 
 # ---- end-to-end: intake over a reference dump ------------------------------

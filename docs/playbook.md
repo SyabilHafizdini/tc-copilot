@@ -73,6 +73,14 @@ UAT walks an asserted flow journey: one test case per journey step, each
 starting where the previous ended. The flow's scenario model (main plus
 alternative scenarios) is asserted in `tc-align`.
 
+### Stitch a flow from existing test cases
+
+In the operator app open **Plan > Flow Builder**. Drag SIT test cases onto the
+canvas, connect them in the order a user walks them, fork where the journey
+can go two ways, then **Save as draft flow**. The result is a draft flow; you
+still confirm it on the alignment card before UAT test cases are generated
+from it. Details: [cli.md](cli.md#flow-builder).
+
 ### Export (`tc-suite-author`)
 
 ```

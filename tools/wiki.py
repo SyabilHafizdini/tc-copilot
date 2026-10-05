@@ -59,6 +59,8 @@ Commands:
                         required (L13); stamps prd-verbatim where derived_from
                         exists, reports the rest, dry-run unless --apply
   dashboard             build/status/{dashboard.json,dashboard.html} (spec §16)
+  flow-draft <file>     write a Flow Builder drawing (operator app) as a DRAFT
+                        flow (never aligned; refuses to replace an asserted one)
   app [--port 8765] [--no-open]     operator app on 127.0.0.1 (needs FastAPI:
                         py -m pip install -r tools/app/requirements.txt)
 """
@@ -1935,6 +1937,9 @@ def main():
     elif cmd == "dashboard":
         from wiki_dashboard import cmd_dashboard
         cmd_dashboard()
+    elif cmd == "flow-draft":
+        from wiki_flowdraft import cmd_flow_draft
+        cmd_flow_draft(args)
     elif cmd == "coverage":
         from wiki_coverage import cmd_coverage
         cmd_coverage(args)

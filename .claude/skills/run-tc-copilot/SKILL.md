@@ -87,6 +87,7 @@ py tools/wiki.py seal                      # hash-seal TC files into manifest (s
 py tools/wiki.py rtm [--graph]             # build/rtm/{matrix,trace,graph.json,gaps}
 py tools/wiki.py suite compile sit-all [--graph]
 py tools/wiki.py dashboard                 # build/status/{dashboard.json,dashboard.html}
+py tools/wiki.py flow-draft <file>         # Flow Builder drawing -> DRAFT flow (then tc-align)
 py tools/wiki.py app [--port 8765] [--no-open]   operator app (needs FastAPI)
 py tools/test_app_visual.py                visual gate: app renders + styled (needs Playwright)
 py tools/wiki.py next --json               structured next-action state

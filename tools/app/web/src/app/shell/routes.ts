@@ -11,12 +11,13 @@ export type View =
   | { kind: 'testcases' } | { kind: 'coverage' } | { kind: 'suites' }
   | { kind: 'changes' } | { kind: 'activity' }
   | { kind: 'rtm' } | { kind: 'settings' } | { kind: 'inbox' }
+  | { kind: 'flowbuilder' }
 
 // Single-segment routes (#/dashboard, #/rtm, ...). 'story' and 'explore' are
 // handled explicitly because they carry a trailing segment.
 const FLAT = new Set([
   'dashboard', 'board', 'stories', 'documents',
-  'testcases', 'coverage', 'suites', 'changes', 'activity', 'rtm', 'settings', 'inbox',
+  'testcases', 'coverage', 'suites', 'changes', 'activity', 'rtm', 'settings', 'inbox', 'flowbuilder',
 ])
 
 export function viewFromHash(): View {

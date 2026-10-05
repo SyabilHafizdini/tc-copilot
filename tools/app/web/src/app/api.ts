@@ -99,6 +99,33 @@ export async function getSuitePreview(filters: SuiteFilters): Promise<SuitePrevi
   return r.json()
 }
 
+// The Flow Builder's read model (tools/wiki_flowdraft.py builder_model): story
+// criteria with their SIT test cases, and the existing flows' journeys.
+export type BuilderModel = {
+  project: string
+  code: string | null
+  stories: Array<{
+    id: string; title: string | null; status: string
+    acs: Array<{ id: string; text: string; status: string | null; tcs: string[] }>
+  }>
+  flows: Array<{
+    id: string; title: string | null; status: string; entry_condition: string | null
+    journey: Array<{
+      id: string; end_state: string | null; note: string | null; ac_ref: string | null
+      source_tc: string | null
+      branch: { id: string; title: string | null } | null
+    }>
+  }>
+  // acs: the "<story id>#<criterion id>" refs the test case covers
+  tcs: Record<string, { id: string; title: string | null; acs: string[]; sections: Record<string, string> }>
+}
+
+export async function getFlowBuilder(): Promise<BuilderModel> {
+  const r = await fetch('/api/flow_builder')
+  if (!r.ok) throw new Error(`GET /api/flow_builder -> ${r.status}`)
+  return r.json()
+}
+
 export async function getInbox(): Promise<InboxSnapshot> {
   const r = await fetch('/api/inbox')
   if (!r.ok) throw new Error(`GET /api/inbox -> ${r.status}`)
