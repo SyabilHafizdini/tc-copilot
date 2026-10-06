@@ -36,7 +36,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
           row([
             cell('Test Case ID', { fill: 'D9D9D9', bold: true, align: 'center', valign: 'center', wrap: true, border: true }),
             cell('Test Steps', { fill: 'D9D9D9', bold: true, border: true }),
-            cell('AI Remarks', { fill: 'D9D9D9', bold: true, border: true }),
+            cell('Remarks', { fill: 'D9D9D9', bold: true, border: true }),
           ], { height: 38 }),
           row([cell('Section: Step 1', { fill: 'DDEBF7', bold: true, border: true }), cell(), cell()],
             { height: 18 }),

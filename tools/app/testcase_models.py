@@ -51,7 +51,7 @@ def _group_of(level, fm, concepts):
 
 
 def _doubts():
-    """(question map for the AI Remarks cell, {doubt id: doubt}) - the same
+    """(question map for the Remarks cell, {doubt id: doubt}) - the same
     summaries `suite compile` hands to the workbook."""
     rows = wiki_doubts.collect_all()
     ctx = (rows, wiki_doubts._resolutions(wiki.ROOT), wiki_doubts._manifest(wiki.ROOT))

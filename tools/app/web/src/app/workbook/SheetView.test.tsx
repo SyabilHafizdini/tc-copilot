@@ -42,7 +42,7 @@ describe('SheetView', () => {
 
   it('clips an unwrapped cell only when the cell to its right holds text', () => {
     const { cellAt } = draw()
-    // "Test Steps" (unwrapped) sits beside "AI Remarks": the spill stops at the border
+    // "Test Steps" (unwrapped) sits beside "Remarks": the spill stops at the border
     expect(cellAt(1, 2)!.className).toContain('wb-clip')
     // the formula row's neighbours are empty: its text may spill, as in Excel
     expect(cellAt(5, 1)!.className).toContain('wb-nowrap')

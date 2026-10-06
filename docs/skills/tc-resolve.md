@@ -150,7 +150,7 @@ selected test case, in impact order, then one row per ungrouped doubt (status
 `ungrouped`, the remark as its text). Columns: Question ID, Question, Status,
 Test cases, Lowest level, Affected (TC id / column), Answer, then blank
 Observation, Observed by and Date for the tester. On the test-case sheets,
-each AI Remarks line of a grouped doubt carries its question id, for example
+each Remarks line of a grouped doubt carries its question id, for example
 `**Field / Values**: Low [Q-US-DEMO-001-01] - Inferred: ...`.
 
 Open doubts never block an export; `wiki next` shows them as a non-blocking

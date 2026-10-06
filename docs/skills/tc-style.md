@@ -125,8 +125,8 @@ The export writes the sheets in the order the runs first appear in the spec.
 
 ## AI confidence and remarks (R7)
 
-Two columns follow Expected Results. `AI Confidence` is the test case's
-overall level. `AI Remarks` breaks it down, one line per reviewed column:
+Two columns follow Expected Results. `Confidence` is the test case's
+overall level. `Remarks` breaks it down, one line per reviewed column:
 
 ```
 Scenario: High - Source: AC3; PRD section 2.4.
