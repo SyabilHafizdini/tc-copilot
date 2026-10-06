@@ -50,6 +50,14 @@ def test_state_endpoint_returns_the_read_model():
     assert "stories" in body and "next" in body, sorted(body)
 
 
+def test_flow_builder_endpoint_returns_its_read_model():
+    """The Flow Builder page stitches from this: stories, flows, test cases."""
+    r = CLIENT.get("/api/flow_builder")
+    assert r.status_code == 200, r.text
+    assert {"stories", "flows", "tcs"} <= set(r.json()), sorted(r.json())
+    assert CLIENT.get("/api/flow_builder", headers={"Host": "evil.example"}).status_code == 403
+
+
 def test_action_runs_and_reports_rc():
     r = CLIENT.post("/api/action/status", json={"params": {}}, headers=GOOD)
     assert r.status_code == 200, r.text
@@ -184,7 +192,7 @@ def test_mutating_action_serialised_by_lock():
     """A mutating action must acquire the write lock; a read action must not.
     We assert the lock exists and the mutating set names the writers."""
     import actions
-    assert actions.MUTATING == {"assert", "card_revise", "card_discard", "session_revert", "export", "suite_compile"}
+    assert actions.MUTATING == {"assert", "card_revise", "card_discard", "session_revert", "export", "suite_compile", "flow_draft"}
     assert hasattr(server, "_write_lock")
 
 

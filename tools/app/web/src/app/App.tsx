@@ -8,6 +8,7 @@ import { Banner, PageSkeleton } from './ui'
 import { Dashboard } from './dashboard/Dashboard'
 import { DocumentsPage } from './documents/DocumentsPage'
 import { ExplorePage } from './explore/ExplorePage'
+import { FlowBuilderPage } from './flowbuilder/FlowBuilderPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { BoardPage } from './pages/BoardPage'
 import { ChangesPage } from './pages/ChangesPage'
@@ -96,6 +97,7 @@ export default function App() {
     if (view.kind === 'testcases') return <TestCasesPage />
     if (view.kind === 'activity') return <ActivityPage />
     if (view.kind === 'rtm') return <RtmPage />
+    if (view.kind === 'flowbuilder') return <FlowBuilderPage theme={theme} />
     // Everything below reads from the state snapshot.
     if (!state) return <PageSkeleton />
     switch (view.kind) {

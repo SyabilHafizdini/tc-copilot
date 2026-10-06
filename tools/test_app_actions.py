@@ -28,7 +28,38 @@ def test_allowlist_is_read_only_in_b():
     """B shipped read-only; D added card mutations; Plan 2 adds export (a writer)."""
     assert set(actions.ALLOWLIST) == {
         "status", "lint", "gate", "next", "assert", "card_revise",
-        "card_discard", "session_revert", "export", "suite_compile"}, sorted(actions.ALLOWLIST)
+        "card_discard", "session_revert", "export", "suite_compile",
+        "flow_draft"}, sorted(actions.ALLOWLIST)
+
+
+def test_flow_draft_parks_the_drawing_and_builds_argv():
+    import json
+    draft = {"kind": "flow-draft", "id": "FLOW-TEST-APP-ACTIONS", "title": "t",
+             "journey": []}
+    parked = ROOT / "build/flowdrafts/FLOW-TEST-APP-ACTIONS.json"
+    try:
+        assert actions.build("flow_draft", {"draft": draft}) == \
+            ["flow-draft", "build/flowdrafts/FLOW-TEST-APP-ACTIONS.json"]
+        assert json.loads(parked.read_text(encoding="utf-8")) == draft
+        assert "flow_draft" in actions.MUTATING     # it writes flows/<id>.md
+    finally:
+        parked.unlink(missing_ok=True)
+
+
+def test_flow_draft_rejects_ids_that_could_leave_the_directory():
+    for bad in ("../evil", "a/b", "a\\b", "x.json", "", "-lead", None, 7,
+                "FLOW 1", "A" * 65):
+        try:
+            actions.build("flow_draft", {"draft": {"id": bad}})
+        except actions.ActionError:
+            continue
+        raise AssertionError(f"accepted flow id {bad!r}")
+    for bad_params in ({"draft": "x"}, {}, {"draft": {"id": "FLOW-1"}, "path": "x"}):
+        try:
+            actions.build("flow_draft", bad_params)
+        except actions.ActionError:
+            continue
+        raise AssertionError(f"accepted {bad_params!r}")
 
 
 def test_build_produces_argv_list_not_a_string():

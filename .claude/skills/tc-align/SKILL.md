@@ -233,6 +233,16 @@ branch. Asserting the flow asserts the journey; `assert flow` refuses while
 `# Open Questions` has bullets OR any member story is not `aligned`. Journey
 refs are lint-checked (L2 resolution, L12 membership).
 
+A flow may arrive already drawn: `origin: human-drafted`, `status: draft`,
+written by `py tools/wiki.py flow-draft <file>` from the operator app's
+Flow Builder page. The human drew that journey, so it IS the
+proposal — do not redraft it from scratch. A journey entry it stitched from
+a SIT test case carries `source_tc: /testcases/sit/...md`; keep it, it tells
+tc-generate-uat which test case that step walks. Check the flow (end states,
+branch wiring, member stories aligned), raise what looks wrong as card questions,
+and use its `# Possible paths` to seed the alternative scenarios below. It
+still needs the card and the human's assert like any other flow.
+
 A flow the human rejects (wrong walk, wrong stories) is **discarded** at
 human instruction — the commits are reverted and git history is the archive.
 Never silently edit a rejected flow into a different one; propose a fresh

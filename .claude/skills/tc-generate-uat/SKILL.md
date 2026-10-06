@@ -30,6 +30,11 @@ violation no matter how it is justified.
    - ID from config `ids.tc_format_uat` (wiki-unique `UAT-` prefix; exports
      strip it so the workbook shows the org's doc-scoped `TC-...`); an
      existing scenario binding owns its ID.
+   - Where the journey entry has `source_tc` (the human stitched that SIT
+     test case in the Flow Builder), walk THAT test case: take its steps,
+     values and expected results from its `tools/sit_specs/` entry as the
+     starting point, then chain and word them for UAT as below. Without
+     `source_tc`, derive the steps from the AC as before.
    - `covers`: the story AC ref + the flow journey ref (`#JNN`). Where a
      journey entry realises a flow branch, add the branch ref to `covers`
      too (this worked example is a linear walk — no branches).

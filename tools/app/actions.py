@@ -200,12 +200,45 @@ def _suite_compile(params):
     return ["suite", "compile", name]
 
 
-MUTATING = {"assert", "card_revise", "card_discard", "session_revert", "export", "suite_compile"}
+FLOW_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{1,63}$")
+FLOW_DRAFT_DIR = ROOT / "build/flowdrafts"
+FLOW_DRAFT_MAX_BYTES = 256 * 1024
+
+
+def _flow_draft(params):
+    """The flow builder's drawing -> `wiki flow-draft <file>`.
+
+    The CLI takes a file, so the drawing is parked under build/flowdrafts/
+    (ignored, like the rest of build/) first. Only its id reaches the path and
+    the argv, and only after matching FLOW_ID_RE; the content is validated by
+    the command itself, which writes a DRAFT flow and refuses to replace an
+    asserted one."""
+    import json
+    extra = set(params) - {"draft"}
+    if extra:
+        raise ActionError(f"unexpected params: {sorted(extra)}")
+    draft = params.get("draft")
+    if not isinstance(draft, dict):
+        raise ActionError("flow_draft needs a draft object")
+    fid = draft.get("id")
+    if not isinstance(fid, str) or not FLOW_ID_RE.fullmatch(fid):
+        raise ActionError(f"invalid flow id: {fid!r}")
+    text = json.dumps(draft, indent=1, ensure_ascii=False)
+    if len(text.encode("utf-8")) > FLOW_DRAFT_MAX_BYTES:
+        raise ActionError("flow draft is too large")
+    FLOW_DRAFT_DIR.mkdir(parents=True, exist_ok=True)
+    (FLOW_DRAFT_DIR / f"{fid}.json").write_text(text, encoding="utf-8", newline="\n")
+    return ["flow-draft", f"build/flowdrafts/{fid}.json"]
+
+
+MUTATING = {"assert", "card_revise", "card_discard", "session_revert", "export",
+            "suite_compile", "flow_draft"}
 
 ALLOWLIST = {"status": _status, "lint": _lint, "gate": _gate, "next": _next,
              "assert": _assert, "card_revise": _card_revise,
              "card_discard": _card_discard, "session_revert": _session_revert,
-             "export": _export, "suite_compile": _suite_compile}
+             "export": _export, "suite_compile": _suite_compile,
+             "flow_draft": _flow_draft}
 
 
 def build(name, params=None):

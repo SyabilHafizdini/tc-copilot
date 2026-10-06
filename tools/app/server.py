@@ -114,6 +114,19 @@ def create_app():
         except (SystemExit, Exception) as e:
             return _crash_response(e)
 
+    @app.get("/api/flow_builder")
+    def flow_builder(request: Request):
+        """What the Flow Builder page stitches from: story criteria with their
+        SIT test cases, and the existing flows' journeys."""
+        if not _host_ok(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        try:
+            from wiki import load_all, load_config
+            from wiki_flowdraft import builder_model
+            return builder_model(load_all()[0], load_config())
+        except (SystemExit, Exception) as e:
+            return _crash_response(e)
+
     @app.get("/api/explorer")
     def explorer(request: Request):
         if not _host_ok(request):

@@ -85,6 +85,41 @@ Outputs under `build/rubric/`: `<id>-rN-score.json`, `<id>-rN-gaps.md`,
 judge subagents), `<id>-rN-delta.json`, `<id>-rN-packed.json`, `<id>-draft.json`,
 `<id>-changes.md/json`, `judgments/<id>-rN-<L>.carried.json`.
 
+## Flow builder
+
+The operator app's **Plan > Flow Builder** page stitches SIT test cases into a
+flow on a canvas:
+
+- The left list holds every live SIT test case, by id and title, under the
+  criterion it covers. Drag one onto the canvas (or press +) to make it a
+  journey step. The step keeps the criterion too, because a journey entry is
+  keyed by criterion (`ref`); the test case is recorded beside it as
+  `source_tc`.
+- A step starts with the test case's postcondition as its end state; edit it
+  on the step. A step's "Criterion and options" lets you swap to another test
+  case of the same criterion.
+- Drag from the dot on a step's right edge to the next step to connect them.
+  Where two lines leave one step, the upper one is the main path and the lower
+  one becomes a branch. Select a line or a step and press Delete to remove it.
+- The right panel shows the journey, branches and every possible path as you
+  draw, and says what is still missing (an unconnected step, an end state).
+- **Start from an existing flow** lays an existing journey out for editing.
+  The journey list does not record where a branch leaves and rejoins, so that
+  wiring is a best guess: check it.
+- **Save as draft flow** runs the command below through the app's action
+  allowlist.
+
+```
+py tools/wiki.py flow-draft <flow-draft-ID.json>
+```
+
+`flow-draft` writes `flows/<ID>.md` at `status: draft`. A drawing is a
+proposal: the flow still goes through `tc-align` (card, scenario model, the
+human's `assert flow --card`) before `tc-generate-uat` will walk it. It
+refuses an id whose flow is already asserted, a criterion that does not exist,
+a step with no end state, and a `source_tc` that is missing, retired, UAT, or
+does not cover the step's criterion.
+
 ## Suites and export
 
 ```
