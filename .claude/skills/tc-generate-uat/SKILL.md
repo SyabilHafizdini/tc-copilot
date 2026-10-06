@@ -56,6 +56,9 @@ violation no matter how it is justified.
      an alternative scenario names that `SC-ALT-nn` too. The engine caps
      T2.1 at band 2 while the model has no alternative item — that is a
      finding about the model, surface it, do not hide it.
+   - `run`: the flow is a run and gets its own worksheet. The engine sets
+     it from the spec's optional top-level `run` (a short worksheet name,
+     Excel cuts tab names at 31 characters) or else the flow's title.
    - `section`: the entry's stage (its `area`), so the sheet prints one
      `Section:` row per stage (tc-style R6). The first entry's precondition
      reads `Start of run: <entry_condition>`.

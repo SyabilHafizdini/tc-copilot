@@ -127,6 +127,16 @@ def test_end_state_wording_place_versus_sentence():
     assert render_uat.state_sentence("Step 1 is completed.") == "Step 1 is completed."
 
 
+def test_run_is_optional_and_must_be_a_name():
+    spec = _spec()
+    spec["run"] = "Scenario 1"
+    assert _errors(spec) == ""
+    spec["run"] = "  "
+    assert "run must be a non-empty name" in _errors(spec)
+    spec["run"] = ["a"]
+    assert "run must be a non-empty name" in _errors(spec)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
