@@ -11,7 +11,8 @@ it writes only under `build/`.
 - Exclude test cases from one run without retiring them.
 
 Not when the test cases do not exist yet (`tc-generate-sit` /
-`tc-generate-uat`), not for re-wording (`tc-style`), not for removing a test
+`tc-generate-uat`), not for re-wording (`tc-style`, or your own edit in the
+app's Test Cases page), not for removing a test
 case permanently (`tc-lifecycle`).
 
 ## How it runs
@@ -21,9 +22,16 @@ case permanently (`tc-lifecycle`).
    is confirmed with you before anything is written.
 2. `suites/<name>.yaml` is written: `kind` (sit or uat),
    `include_modules` / `exclude_modules`, `include_flows` / `exclude_flows`,
-   `priorities`, `extra_include` / `extra_exclude` (test-case ids; exclude
+   `include_prds` / `exclude_prds` (PRD ids), `priorities`, `extra_include` / `extra_exclude` (test-case ids; exclude
    wins), `created_by`, `created_via: nl-prompt`, and your verbatim prompt
-   for provenance. The YAML is the artifact of record.
+   for provenance. The YAML is the artifact of record. `include_prds` keeps
+   test cases that draw on at least one listed PRD; `exclude_prds` drops test
+   cases that draw on any listed PRD. A test case draws on the PRDs in its
+   `generated_from.prd_versions`; one with none draws on no PRD, so
+   `include_prds` drops it. PRD names you use are resolved to registered ids
+   (`py tools/wiki.py status`); `suite compile` refuses an unknown id and
+   lists the registered ones. The workbook's Proj Doc References sheet lists
+   one row per PRD drawn on, and the app's suite preview has a PRD filter.
 3. Compile and preview before calling it done:
    ```
    py tools/wiki.py suite compile <name>

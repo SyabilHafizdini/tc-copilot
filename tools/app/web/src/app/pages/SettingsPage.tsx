@@ -1,9 +1,12 @@
 import type { State, ProjectCard } from '../api'
+import { PrdList } from '../prd/PrdList'
 
 /* Settings (stitch screen 15): the same labeled-field layout as the metadata
- * panels. Everything here is read from live state; theme is the one control. */
-export function SettingsPage({ state, projects, theme, onToggleTheme }: {
+ * panels. Everything here is read from live state; theme and chat are the two
+ * controls, both per-browser view preferences owned by App. */
+export function SettingsPage({ state, projects, theme, onToggleTheme, chatEnabled = false, onSetChatEnabled }: {
   state: State; projects: ProjectCard[]; theme: 'light' | 'dark'; onToggleTheme: () => void
+  chatEnabled?: boolean; onSetChatEnabled?: (enabled: boolean) => void
 }) {
   const project = projects[0] ?? null
   return (
@@ -22,6 +25,15 @@ export function SettingsPage({ state, projects, theme, onToggleTheme }: {
               </div>
             </dd>
           </div>
+          <div className="fm-field">
+            <dt>chat</dt>
+            <dd>
+              <div className="explore-mode">
+                <button className={chatEnabled ? '' : 'active'} onClick={() => chatEnabled && onSetChatEnabled?.(false)}>Off</button>
+                <button className={chatEnabled ? 'active' : ''} onClick={() => !chatEnabled && onSetChatEnabled?.(true)}>On</button>
+              </div>
+            </dd>
+          </div>
         </dl>
       </div>
 
@@ -31,12 +43,15 @@ export function SettingsPage({ state, projects, theme, onToggleTheme }: {
           <div className="fm-field"><dt>project</dt><dd>{state.project}</dd></div>
           {project && <div className="fm-field"><dt>product</dt><dd>{project.product}</dd></div>}
           {project && <div className="fm-field"><dt>branch</dt><dd><span className="id">{project.branch}</span></dd></div>}
-          <div className="fm-field"><dt>prd adopted</dt><dd>{state.prd.adopted ?? '—'}</dd></div>
-          <div className="fm-field"><dt>prd staged</dt><dd>{state.prd.staged ?? '—'}</dd></div>
           <div className="fm-field"><dt>stories</dt><dd>{state.stories.length}</dd></div>
           <div className="fm-field"><dt>test cases</dt><dd>{state.totals.tcs ?? 0}</dd></div>
           <div className="fm-field"><dt>suites</dt><dd>{state.suites.join(', ') || '—'}</dd></div>
         </dl>
+      </div>
+
+      <div className="pane" style={{ maxWidth: 640, marginTop: 16 }}>
+        <h4>PRDs</h4>
+        <PrdList prds={state.prds} schema1={state.schema1} />
       </div>
     </div>
   )

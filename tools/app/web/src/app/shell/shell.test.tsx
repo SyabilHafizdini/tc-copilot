@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
@@ -32,6 +33,62 @@ describe('AppShell', () => {
     expect(container.querySelector('.chatcol')).not.toBeNull()
     expect(container.querySelector('.navcol')).not.toBeNull()
     for (const t of ['CHAT', 'TOP', 'NAV', 'PAGE']) expect(screen.getByText(t)).toBeInTheDocument()
+  })
+
+  it('keeps the collapsed column and the reopen button when chat is enabled but closed', () => {
+    const onReopen = vi.fn()
+    const { container } = render(
+      <AppShell chat={<div>CHAT</div>} topbar={<div>TOP</div>} nav={<div>NAV</div>}
+        chatEnabled chatOpen={false} onReopen={onReopen}>
+        <div>PAGE</div>
+      </AppShell>,
+    )
+    expect(container.querySelector('.chatcol.collapsed')).not.toBeNull()
+    expect(container.querySelector('.app-body')).not.toHaveClass('no-chat')
+    fireEvent.click(screen.getByTitle('Show chat'))
+    expect(onReopen).toHaveBeenCalledOnce()
+  })
+
+  it('renders no chat column, no reopen button and no chat track when chat is disabled', () => {
+    const { container } = render(
+      <AppShell chat={<div>CHAT</div>} topbar={<div>TOP</div>} nav={<div>NAV</div>}
+        chatEnabled={false} chatOpen={false} chatWidth={400}>
+        <div>PAGE</div>
+      </AppShell>,
+    )
+    expect(container.querySelector('.chatcol')).toBeNull()
+    expect(container.querySelector('.chat-resize')).toBeNull()
+    expect(screen.queryByTitle('Show chat')).toBeNull()
+    expect(screen.queryByText('CHAT')).toBeNull()
+    expect(container.querySelector('.app-body')).toHaveClass('no-chat')
+    expect(container.querySelector<HTMLElement>('.app')!.style.getPropertyValue('--chat-w')).toBe('0px')
+    for (const t of ['TOP', 'NAV', 'PAGE']) expect(screen.getByText(t)).toBeInTheDocument()
+  })
+
+  it('renders no chat column when chat is disabled even if the open state says open', () => {
+    const { container } = render(
+      <AppShell chat={<div>CHAT</div>} topbar={<div>TOP</div>} nav={<div>NAV</div>}
+        chatEnabled={false} chatOpen chatWidth={400}>
+        <div>PAGE</div>
+      </AppShell>,
+    )
+    expect(container.querySelector('.chatcol')).toBeNull()
+    expect(container.querySelector<HTMLElement>('.app')!.style.getPropertyValue('--chat-w')).toBe('0px')
+  })
+})
+
+// jsdom applies no stylesheet, so the grid rules are pinned as text. vitest
+// runs with tools/app/web as the working directory.
+describe('index.css chat track', () => {
+  const css = readFileSync('src/index.css', 'utf8')
+
+  it('drops the chat track when the shell is marked no-chat', () => {
+    expect(css).toMatch(/\.app-body\.no-chat\s*\{\s*grid-template-columns:\s*240px minmax\(0, 1fr\);\s*\}/)
+  })
+
+  it('keeps the single-column narrow layout when chat is disabled', () => {
+    const narrow = css.slice(css.indexOf('@media (max-width: 820px)'))
+    expect(narrow).toMatch(/\.app-body,\s*\.app-body\.no-chat\s*\{\s*grid-template-columns:\s*1fr;\s*\}/)
   })
 })
 
@@ -69,6 +126,17 @@ describe('Sidebar', () => {
     const dashboardIx = labels.findIndex((l) => /dashboard/i.test(l ?? ''))
     expect(exploreIx).toBeGreaterThanOrEqual(0)
     expect(exploreIx).toBeLessThan(dashboardIx)
+  })
+
+  it('has a Workbook entry that opens the picker and lights up on any workbook', () => {
+    const onNavigate = vi.fn()
+    render(<Sidebar
+      active={{ kind: 'workbook', wbKind: 'sit', file: 'demo-latest.xlsx' }}
+      onNavigate={onNavigate} />)
+    const item = screen.getByRole('button', { name: 'Workbook' })
+    expect(item).toHaveAttribute('aria-current', 'page')
+    fireEvent.click(item)
+    expect(onNavigate).toHaveBeenCalledWith({ kind: 'workbook', wbKind: '', file: '' })
   })
 })
 

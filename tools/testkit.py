@@ -85,3 +85,86 @@ def require(kind, name):
     if not bundle_concept_counts().get(kind):
         print(f"[SKIP] {name}: bundle has no {kind} concept to assert against")
         sys.exit(0)
+
+
+# ---- scratch bundle roots ---------------------------------------------------
+# A throwaway repo root under build/ (git-ignored), driven through the real CLI
+# with TC_ROOT_OVERRIDE. Nothing here can touch the tracked wiki.
+import os
+import shutil
+import subprocess
+
+# The tracked repository, derived from this file's own location. wiki.ROOT is
+# not used for the guards: it follows TC_ROOT_OVERRIDE and so can be a scratch.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+FIXTURES = REPO_ROOT / "tools/fixtures"
+
+
+def scratch_root(name):
+    """An empty bundle root at build/_<name>/, recreated on every call. It has
+    no manifest.json, so the CLI starts from load_manifest()'s default. `name`
+    must be a plain name: anything that could point elsewhere is refused
+    before a directory is removed or created."""
+    if (not isinstance(name, str) or not name or name in (".", "..")
+            or ".." in name or "/" in name or "\\" in name
+            or Path(name).name != name):
+        raise ValueError(f"scratch_root: {name!r} is not a plain name "
+                         f"(no separators, no '..')")
+    root = REPO_ROOT / "build" / f"_{name}"
+    if root.parent != REPO_ROOT / "build":
+        raise ValueError(f"scratch_root: {name!r} resolves outside build/")
+    if root.exists():
+        shutil.rmtree(root)
+    root.mkdir(parents=True)
+    return root
+
+
+def multi_prd_root(name):
+    """A scratch root carrying the two-PRD fixture's config.yaml. PRD documents
+    are placed one version at a time with put_prd()."""
+    root = scratch_root(name)
+    shutil.copyfile(FIXTURES / "multi_prd/config.yaml", root / "config.yaml")
+    return root
+
+
+def put_prd(root, prd_id, version, filename):
+    """Copy tools/fixtures/multi_prd/prds/<filename> to
+    <root>/inputs/prd/<prd_id>/v<version>/<filename>."""
+    dest = root / f"inputs/prd/{prd_id}/v{version}" / filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURES / "multi_prd/prds" / filename, dest)
+    return dest
+
+
+def add_story(root, sid, refs, status="aligned"):
+    """A prd-verbatim story citing `refs` (ingested section refs), with
+    source_pins taken from those sections as `wiki assert story` would write
+    them. Fixture content only - no real story is asserted this way."""
+    from wiki import read_concept, resolve_ref, source_pin, write_concept
+    pins = {}
+    for ref in refs:
+        fm, _body = read_concept(root / (resolve_ref(ref)[0] + ".md"))
+        pins[fm["id"]] = source_pin(fm)
+    path = root / f"stories/{sid}.md"
+    write_concept(path, {
+        "type": "User Story", "id": sid, "title": f"{sid} title",
+        "description": "Fixture story.", "status": status,
+        "provenance": "prd-verbatim", "derived_from": list(refs),
+        "acceptance_criteria": [{"id": "AC1", "text": "Fixture criterion."}],
+        "source_pins": pins}, "# Story\n\nFixture.\n")
+    return path
+
+
+def cli(root, *argv):
+    """Run the real `wiki.py` against a scratch root, never committing. The root
+    must be an absolute path that is not the repository itself: an empty or
+    relative one would resolve to the tracked wiki."""
+    if not str(root) or not Path(root).is_absolute():
+        raise ValueError(f"cli: root {str(root)!r} is not an absolute path")
+    if Path(root).resolve() == REPO_ROOT:
+        raise ValueError("cli: root is the tracked repository; use a scratch root")
+    env = dict(os.environ, TC_ROOT_OVERRIDE=str(root))
+    return subprocess.run(
+        [sys.executable, str(REPO_ROOT / "tools" / "wiki.py"), *argv, "--no-commit"],
+        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8",
+        errors="replace", env=env)

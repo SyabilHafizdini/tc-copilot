@@ -30,7 +30,9 @@ import explorer_models
 import opencode_sidecar
 import read_models
 import runner
+import testcase_models
 import watcher
+import workbook_model
 
 try:
     import httpx
@@ -136,6 +138,15 @@ def create_app():
         except (SystemExit, Exception) as e:
             return _crash_response(e)
 
+    @app.get("/api/testcases")
+    def testcases(request: Request):
+        if not _host_ok(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        try:
+            return testcase_models.testcases()
+        except (SystemExit, Exception) as e:
+            return _crash_response(e)
+
     @app.get("/api/inbox")
     def inbox(request: Request):
         if not _host_ok(request):
@@ -159,6 +170,32 @@ def create_app():
                 or target.suffix != ".xlsx"):
             return JSONResponse({"error": "not found"}, status_code=404)
         return FileResponse(target, media_type=XLSX_MEDIA, filename=target.name)
+
+    @app.get("/api/workbooks")
+    def workbooks(request: Request):
+        if not _host_ok(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        try:
+            return workbook_model.workbooks()
+        except (SystemExit, Exception) as e:
+            return _crash_response(e)
+
+    @app.get("/api/workbook/{kind}/{file}")
+    def workbook(kind: str, file: str, request: Request):
+        if not _host_ok(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        # Path handling lives in workbook_model._resolve: resolve first, then
+        # require an existing .xlsx at build/inventory/<kind>/<file>. A `/` in
+        # either segment never reaches here (the route has two segments).
+        try:
+            return workbook_model.workbook(kind, file)
+        except workbook_model.WorkbookNotFound:
+            return JSONResponse({"error": "not found"}, status_code=404)
+        except workbook_model.WorkbookUnreadable as e:
+            return JSONResponse({"error": str(e)}, status_code=422)
+        except (SystemExit, Exception) as e:
+            return _crash_response(e)
+
 
     @app.get("/api/projects")
     def projects(request: Request):

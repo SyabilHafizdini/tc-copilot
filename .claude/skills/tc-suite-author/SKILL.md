@@ -18,10 +18,19 @@ generated TCs. Compiling MUST be instant, reversible, and write only under
    the export.
 2. Write `suites/<name>.yaml` (see `suites/sit-vhld-p1.yaml` for the shape):
    `kind`, `include_modules`/`exclude_modules` (module file stems),
-   `include_flows`/`exclude_flows`, `priorities`, `extra_include`/
+   `include_flows`/`exclude_flows`, `include_prds`/`exclude_prds` (PRD ids),
+   `priorities`, `extra_include`/
    `extra_exclude` (TC IDs; exclude wins), `created_by`, `created_via:
    nl-prompt`, and the verbatim `prompt` for provenance. The YAML is the
-   artifact of record; the prompt is provenance only.
+   artifact of record; the prompt is provenance only. `include_prds` keeps
+   test cases that draw on at least one listed PRD; `exclude_prds` drops test
+   cases that draw on any listed PRD. A test case draws on the PRDs in its
+   `generated_from.prd_versions`; one with none (a story citing no PRD) draws
+   on no PRD, so `include_prds` drops it. Resolve PRD names the human uses to
+   registered ids (`py tools/wiki.py status`); `suite compile` refuses an
+   unknown id and lists the registered ones. The compiled workbook's Proj Doc
+   References sheet lists one row per PRD drawn on. The app's suite preview
+   has a matching PRD filter.
 3. Compile and present the resolved preview BEFORE calling it done:
 
    ```
@@ -48,8 +57,10 @@ generated TCs. Compiling MUST be instant, reversible, and write only under
 
 - The TCs do not exist yet → `tc-generate-sit` (story) or `tc-generate-uat`
   (flow). A suite cannot select what was never generated.
-- A selected TC's wording is wrong → `tc-style` + re-render the scope; never
-  hand-edit the compiled workbook.
+- A selected TC's wording is wrong → `tc-style` (the agent rewrites the spec
+  and re-renders the scope), or the human edits it in the app's Test Cases
+  page; never hand-edit the compiled workbook, and never run `wiki tc edit`
+  with wording you composed.
 - A selected TC should not exist at all → `tc-lifecycle` (retire/void).
 - Stale TCs are being excluded and you want them back → regenerate them with
   the matching tc-generate skill; the suite is a filter, not a fixer.

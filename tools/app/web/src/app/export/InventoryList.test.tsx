@@ -26,4 +26,21 @@ describe('InventoryList', () => {
     fireEvent.click(downloads[0])
     expect(runDownload).toHaveBeenCalledWith('sit/US-VHLD-sit-latest.xlsx')
   })
+
+  it('offers Open beside Download, targeting the workbook view of that file', () => {
+    render(<InventoryList items={items} />)
+    const opens = screen.getAllByRole('link', { name: 'Open' })
+    expect(opens.map((a) => a.getAttribute('href'))).toEqual([
+      '#/workbook/sit/US-VHLD-sit-latest.xlsx',
+      '#/workbook/uat/regression-latest.xlsx',
+    ])
+  })
+
+  it('encodes an odd file name in the Open link', () => {
+    render(<InventoryList items={[
+      { file: 'sit/My Suite #1-latest.xlsx', story: null, kind: 'sit', mtime: '2026-08-10T12:00:00+00:00' },
+    ]} />)
+    expect(screen.getByRole('link', { name: 'Open' }).getAttribute('href'))
+      .toBe('#/workbook/sit/My%20Suite%20%231-latest.xlsx')
+  })
 })

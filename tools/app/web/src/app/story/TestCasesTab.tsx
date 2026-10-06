@@ -1,43 +1,26 @@
-import { useState } from 'react'
-import { Pill, Card } from '../ui'
-import type { TcRow, TcLevel } from './testcases'
+import { useEffect, useState } from 'react'
+import { getTestCases, onChange } from '../api'
+import { TestCaseGrid } from '../testcases/TestCaseGrid'
+import type { TestCasesPayload } from '../testcases/types'
+import { Banner, Skeleton } from '../ui'
 
-const LEVELS: Array<{ key: TcLevel | 'all'; label: string }> = [
-  { key: 'all', label: 'All' }, { key: 'sit', label: 'SIT' }, { key: 'uat', label: 'UAT' }, { key: 'osat', label: 'OSAT' },
-]
+/* The story's test cases: the same review grid as the Test Cases page,
+ * locked to this story. */
+export function TestCasesTab({ storyId }: { storyId: string }) {
+  const [payload, setPayload] = useState<TestCasesPayload | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const load = () => getTestCases()
+      .then((p) => { setPayload(p); setError(null) })
+      .catch((e) => setError(String(e)))
+    load()
+    return onChange(load)
+  }, [])
 
-export function TestCasesTab({ rows }: { rows: TcRow[] }) {
-  const [level, setLevel] = useState<TcLevel | 'all'>('all')
-  const shown = level === 'all' ? rows : rows.filter((r) => r.level === level)
+  if (!payload) return error ? <Banner tone="blocked">{error}</Banner> : <Skeleton lines={5} />
   return (
     <div className="tc-tab">
-      <div className="level-filter">
-        {LEVELS.map((l) => (
-          <button key={l.key} className={`chip ${level === l.key ? 'on' : ''}`} onClick={() => setLevel(l.key)}>
-            {l.label}
-          </button>
-        ))}
-      </div>
-      {shown.length === 0 ? (
-        <p className="section-label">No test cases at this level.</p>
-      ) : shown.map((tc) => (
-        <Card key={tc.id}>
-          <div className="tc-head">
-            <span className="id">{tc.id}</span>{' '}
-            <Pill state="neutral">{tc.level.toUpperCase()}</Pill>{' '}
-            {tc.ac && <span className="skill">{tc.ac}</span>}
-            {tc.title && <span className="state"> {tc.title}</span>}
-          </div>
-          <table>
-            <thead><tr><th>#</th><th>Action</th><th>Test data</th><th>Expected result</th></tr></thead>
-            <tbody>
-              {tc.steps.map((s) => (
-                <tr key={s.n}><td>{s.n}</td><td>{s.action}</td><td>{s.data}</td><td>{s.expected}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </Card>
-      ))}
+      <TestCaseGrid payload={payload} lockStory={storyId} />
     </div>
   )
 }

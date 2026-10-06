@@ -9,7 +9,7 @@ const STORY: Story = {
   open_questions: 0, asserted_by: null, tc: { active: 0, stale: 0, retired: 0 }, stale_causes: [],
   components: { total: 15, covered: 0, acs_without_tcs: 0, out_of_scope: 0, gaps: 15 },
 }
-const FIELDS: Field[] = [{ key: 'module', kind: 'link', ref: '/modules/production-monitoring.md', label: 'production-monitoring' }]
+const FIELDS: Field[] = [{ key: 'module', kind: 'link', ref: '/modules/example-module.md', label: 'example-module' }]
 
 describe('PropertiesRail', () => {
   it('renders the status transitions, marking gated ones', () => {
@@ -34,7 +34,7 @@ describe('PropertiesRail', () => {
   it('renders the metadata fields via FrontmatterFields', () => {
     const onNavigate = vi.fn()
     render(<PropertiesRail story={STORY} fields={FIELDS} onRun={vi.fn()} onNavigate={onNavigate} />)
-    fireEvent.click(screen.getByRole('button', { name: 'production-monitoring' }))
-    expect(onNavigate).toHaveBeenCalledWith('modules/production-monitoring')
+    fireEvent.click(screen.getByRole('button', { name: 'example-module' }))
+    expect(onNavigate).toHaveBeenCalledWith('modules/example-module')
   })
 })

@@ -45,7 +45,7 @@ export function ItemView({ doc, frag, graph, docs, onNavigate }: {
   docs: Record<string, DocView>; onNavigate: (nodeId: string) => void
 }) {
   const nodeId = `${doc.ref}#${frag}`
-  const { items, toggle } = useSelection()
+  const { items, toggle, chatEnabled } = useSelection()
   const inChat = items.some((i) => i.ref === nodeId)
   const node = graph.nodes.find((n) => n.id === nodeId) ?? null
   const item = doc.fields
@@ -64,12 +64,14 @@ export function ItemView({ doc, frag, graph, docs, onNavigate }: {
         </span>
         <span className="id">{frag}</span>
         {item?.status && <Pill state={pillState(item.status)}>{item.status}</Pill>}
-        <button
-          className={`btn item-chat${inChat ? ' primary' : ''}`}
-          onClick={() => toggle({ ref: nodeId, label: frag, type: node?.type?.toLowerCase() ?? 'item' })}
-        >
-          {inChat ? '✓ In chat selection' : 'Add to chat'}
-        </button>
+        {chatEnabled && (
+          <button
+            className={`btn item-chat${inChat ? ' primary' : ''}`}
+            onClick={() => toggle({ ref: nodeId, label: frag, type: node?.type?.toLowerCase() ?? 'item' })}
+          >
+            {inChat ? '✓ In chat selection' : 'Add to chat'}
+          </button>
+        )}
       </div>
       <p className="item-parent">
         In{' '}

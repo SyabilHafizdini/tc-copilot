@@ -53,3 +53,5 @@ tc-generate — testers batch corrections before regenerating anything.
   `tc-generate-uat`, when the human asks.
 - The correction came from a new PRD version → `tc-change-report`.
 - A TC is simply wrong and should go away → `tc-lifecycle`.
+- Answering an open doubt question (a card from `doubts card`), or a chat
+  answer to something an open doubt asks → `tc-resolve`.

@@ -17,7 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from wiki import (ROOT, all_concepts, arg_after, body_section, load_config,
-                  load_manifest, resolve_ref, sha256, story_tc_stats)
+                  load_manifest, prd_rows, reports_for_prd, resolve_ref, sha256,
+                  story_tc_stats)
 from wiki_coverage import load_coverage
 
 
@@ -52,7 +53,7 @@ def pending_cards(root=ROOT):
     for p in sorted(d.glob("*.json")):
         try:
             c = json.loads(p.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+        except ValueError:  # not JSON, or not valid UTF-8
             continue
         if c.get("human_response"):
             continue
@@ -64,6 +65,27 @@ def pending_cards(root=ROOT):
                     "card_type": c.get("card_type") or c.get("scope"),
                     "story": c.get("story"), "session": c.get("session"),
                     "card": c})
+    return out
+
+
+def answered_doubts_cards(root=ROOT):
+    """Doubts cards answered (human_response.answers) but not yet applied by
+    `doubts answer`, sorted by file name. A discarded card has no answers and
+    never appears. The sibling of pending_cards: an answered card is not
+    pending, so this is the only trace of an answer that was never applied."""
+    d = Path(root) / "build/cards"
+    out = []
+    for p in sorted(d.glob("*.json")) if d.exists() else []:
+        try:
+            c = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:  # not JSON, or not valid UTF-8
+            continue
+        hr = c.get("human_response") if isinstance(c, dict) else None
+        if (isinstance(c, dict) and c.get("card_type") == "doubts"
+                and isinstance(hr, dict) and hr.get("answers")
+                and not c.get("applied")):
+            out.append({"file": p.name, "story": c.get("story"),
+                        "by": hr.get("by")})
     return out
 
 
@@ -210,6 +232,31 @@ def delivery_next(scope_id, flag, name, manifest, scope_rel, active, skill_gen,
             "tc-suite-author (final export; suite compile for a multi-scope workbook)")
 
 
+_LIFTS = {"on": False, "val": None}
+
+
+def _all_unrendered():
+    """wiki_doubts.unrendered_lifts(), computed once per collect_next call
+    (collect_next switches the memo on; a direct caller computes afresh).
+    Never raises: a doubts failure must not take `next` down."""
+    if _LIFTS["on"] and _LIFTS["val"] is not None:
+        return _LIFTS["val"]
+    try:
+        import wiki_doubts
+        val = list(wiki_doubts.unrendered_lifts())
+    except Exception:
+        val = []
+    if _LIFTS["on"]:
+        _LIFTS["val"] = val
+    return val
+
+
+def _unrendered(kind, key, value):
+    """The unrendered-lift entries of one kind whose `key` equals `value`."""
+    return [e for e in _all_unrendered()
+            if e["kind"] == kind and e[key] == value]
+
+
 def story_next(sid, fm, body, manifest, story_rel, concepts=None):
     """(state, command, skill) — first unmet precondition wins. `concepts`
     (collect_next passes them) makes the scope digest read the concept files
@@ -251,12 +298,38 @@ def story_next(sid, fm, body, manifest, story_rel, concepts=None):
         return (f"aligned · coverage confirmed · {t['stale']} STALE TC(s)",
                 f"py tools/render_sit.py --story {sid} && py tools/wiki.py seal",
                 "tc-generate-sit (regenerate staled TCs)")
+    lifts = _unrendered("sit", "story", sid) if t["active"] else []
+    if lifts:
+        return (f"{len(lifts)} confirmed doubt(s) not rendered",
+                f"py tools/render_sit.py --story {sid}"
+                f"   # then: py tools/wiki.py seal",
+                "tc-resolve (render and seal the lifts)")
     if not t["active"]:
         return ("aligned · coverage confirmed · 0 TCs",
                 f"py tools/render_sit.py --story {sid} && py tools/wiki.py seal",
                 "tc-generate-sit (render)")
     return delivery_next(sid, "--story", f"{sid}-sit", manifest, story_rel,
                          t["active"], "tc-generate-sit", concepts=concepts)
+
+
+def doubts_also(story_id, root=None, _ctx=None):
+    """The non-blocking `also` list for one story: open doubts, or a pointer
+    to lint when the register cannot be read. Never raises -- the operator app
+    calls collect_next, and a bad register must not take it down."""
+    invalid = [{"state": "doubt register invalid - run lint",
+                "command": "py tools/wiki.py lint", "skill": "tc-resolve"}]
+    try:
+        import wiki_doubts
+        s = wiki_doubts.story_summary(story_id, root=root, _ctx=_ctx)
+        if s["register_errors"]:
+            return invalid
+        if not s["open"]:
+            return []
+        return [{"state": f"{s['open']} open doubts in {s['questions_open']} questions",
+                 "command": f"py tools/wiki.py doubts list --story {story_id}",
+                 "skill": "tc-resolve"}]
+    except Exception:
+        return invalid
 
 
 def flow_next(fid, fm, body, concepts, manifest, flow_rel=None):
@@ -291,21 +364,67 @@ def flow_next(fid, fm, body, concepts, manifest, flow_rel=None):
     for rel, entry in manifest["concepts"].items():
         if rel.startswith("testcases/uat/") and entry.get("status") in uat:
             uat[entry["status"]] += 1
+    render = f"py tools/render_uat.py --flow {fid}"
+    lifts = _unrendered("uat", "flow", fid) if uat["active"] \
+        and not uat["stale"] else []
+    if lifts:
+        return (f"{len(lifts)} confirmed doubt(s) not rendered",
+                f"{render}   # then: py tools/wiki.py seal",
+                "tc-resolve (render and seal the lifts)")
     if uat["stale"]:
         return (f"aligned · journey {len(journey)} entries · {uat['stale']} STALE UAT TC(s)",
-                f"py tools/render_uat.py --flow {fid} --force && py tools/wiki.py seal",
+                f"{render} --force && py tools/wiki.py seal",
                 "tc-generate-uat (re-render; --force because coverage_map sits "
                 "outside AC fragment pins)")
     if not uat["active"]:
         return (f"aligned · journey {len(journey)} entries · 0 UAT TCs",
-                f"py tools/render_uat.py --flow {fid} && py tools/wiki.py seal",
-                "tc-generate-uat (render the chain)")
+                f"{render} && py tools/wiki.py seal",
+                "tc-generate-uat (write tools/uat_specs/<flow>.yaml, then render the chain)")
     stem = Path(flow_rel).stem if flow_rel else fid
     # collect_next always passes flow_rel; the f"flows/{stem}" fallback only
     # serves a direct caller and must match the concept's real rel.
     return delivery_next(stem, "--flow", f"{stem}-uat", manifest,
                          flow_rel or f"flows/{stem}", uat["active"], "tc-generate-uat",
                          concepts=concepts)
+
+
+def prd_banners(manifest):
+    """One banner per PRD that has a staged version, naming the PRD."""
+    out = []
+    for r in prd_rows(manifest):
+        if r["staged"] and r["staged"] != r["adopted"]:
+            reports = [c for c in reports_for_prd(r["id"])
+                       if c.get("status") in ("pending", "rejected")]
+            live = [c["id"] for c in reports if c["status"] == "pending"
+                    and c.get("to_version") == r["staged"]]
+            stale = [c["id"] for c in reports if c["status"] == "pending"
+                     and c.get("to_version") != r["staged"]]
+            rejected = [c["id"] for c in reports if c["status"] == "rejected"
+                        and c.get("to_version") == r["staged"]]
+            if not live and rejected:
+                out.append({
+                    "state": (f"PRD {r['id']} v{r['staged']} was rejected in "
+                              f"{rejected[-1]}; a corrected document is awaited "
+                              f"(adopted: v{r['adopted']})"),
+                    "command": (f"py tools/wiki.py ingest-prd --prd {r['id']}"
+                                f"   # after replacing the document under "
+                                f"inputs/prd/{r['id']}/v{r['staged']}/ with "
+                                f"the corrected one"),
+                    "skill": "tc-intake (ingest the corrected document)"})
+                continue
+            state = (f"PRD {r['id']} v{r['staged']} is STAGED but not "
+                     f"adopted (adopted: v{r['adopted']})")
+            if live:
+                state += f"; act on {live[-1]}"
+            if stale:
+                state += (f"; {', '.join(stale)} is superseded and can no "
+                          f"longer be approved (reject it)")
+            out.append({
+                "state": state,
+                "command": f"py tools/wiki.py diff --prd {r['id']}",
+                "skill": ("tc-change-report (classify the CR, present "
+                          "conflicts, human approves or rejects)")})
+    return out
 
 
 def collect_next(args):
@@ -315,32 +434,52 @@ def collect_next(args):
     state/command/skill (rows also carry id). `cmd_next` prints this; the
     operator app serves it as JSON.
     """
+    _LIFTS.update(on=True, val=None)
+    try:
+        return _collect_next(args)
+    finally:
+        _LIFTS.update(on=False, val=None)
+
+
+def _collect_next(args):
     only = arg_after(args, "--story") if "--story" in args else None
     concepts = {rel: (fm, body, p) for rel, fm, body, p in all_concepts()}
     manifest = load_manifest()
 
-    banners = []
-    staged = manifest.get("staged_prd_version")
-    if staged and staged != manifest.get("adopted_prd_version"):
-        banners.append({
-            "state": (f"PRD v{staged} is STAGED but not adopted (adopted: "
-                      f"v{manifest.get('adopted_prd_version')})"),
-            "command": "py tools/wiki.py diff --prd",
-            "skill": ("tc-change-report (classify the CR, present conflicts, "
-                      "human approves or rejects)")})
+    banners = prd_banners(manifest)
     pend = pending_cards()
     if pend:
         first = pend[0]
         scope = first.get("story") or first.get("session") or "?"
+        if first.get("card_type") == "doubts":
+            f = first["file"]
+            command = (f"py tools/wiki.py card revise build/cards/{f} --by "
+                       f"<user> --answer <Q-id>=accept   # or "
+                       f"<Q-id>=\"<your answer>\"; then: py tools/wiki.py "
+                       f"doubts answer --card build/cards/{f} --by <user>")
+            skill = ("tc-resolve (present the questions on the card; the "
+                     "human answers)")
+        else:
+            command = (f"py tools/wiki.py assert story <id> --by <user> "
+                       f"--card build/cards/{first['file']}"
+                       f"   # or: card revise|discard build/cards/{first['file']} --by <user>")
+            skill = ("tc-align (present the card that already exists -- do NOT "
+                     "redo the session)")
         banners.append({
             "state": (f"{len(pend)} card(s) awaiting your answer -- first: "
                       f"{first['file']} ({first.get('card_type') or 'card'}, "
                       f"{scope})"),
-            "command": (f"py tools/wiki.py assert story <id> --by <user> "
-                        f"--card build/cards/{first['file']}"
-                        f"   # or: card revise|discard build/cards/{first['file']} --by <user>"),
-            "skill": ("tc-align (present the card that already exists -- do NOT "
-                      "redo the session)")})
+            "command": command, "skill": skill})
+    for c in answered_doubts_cards():
+        card, by = f"build/cards/{c['file']}", c["by"] or "<user>"
+        banners.append({
+            "state": f"doubts card {c['file']} is answered but not applied",
+            "command": (f"py tools/wiki.py doubts answer --card {card} --by "
+                        f"{by}   # refused as changed? py tools/wiki.py card "
+                        f"discard {card} --by {by}, then emit a new card: "
+                        f"py tools/wiki.py doubts card --story "
+                        f"{c['story'] or '<id>'}"),
+            "skill": "tc-resolve"})
     dump = ROOT / "PUT_FILES_HERE"
     dumped = [p for p in dump.rglob("*")
               if p.is_file() and p.name not in ("README.md", ".gitkeep", ".gitignore")] \
@@ -368,6 +507,20 @@ def collect_next(args):
             "skill": ("tc-lifecycle (accept the hand-edit or restore the "
                       "sealed content — human decides)")})
 
+    shared = []
+
+    def dctx():
+        """One doubts collection shared by every story row."""
+        if not shared:
+            try:
+                import wiki_doubts
+                shared.append((wiki_doubts.collect_all(),
+                               wiki_doubts._resolutions(ROOT),
+                               wiki_doubts._manifest(ROOT)))
+            except Exception:
+                shared.append(None)
+        return shared[0]
+
     rows = []
     for rel, (fm, body, _p) in concepts.items():
         if not fm:
@@ -381,7 +534,8 @@ def collect_next(args):
             # story's id doubles as its own gate identifier.
             rows.append({"id": fm["id"], "state": state,
                          "command": cmd, "skill": skill,
-                         "scope": "story", "arg": fm["id"]})
+                         "scope": "story", "arg": fm["id"],
+                         "also": doubts_also(fm["id"], _ctx=dctx())})
         elif fm.get("type") == "Flow" and not only:
             state, cmd, skill = flow_next(fm["id"], fm, body, concepts, manifest, flow_rel=rel)
             # `gate --flow` keys on the flow's FILE STEM (e.g.
@@ -390,7 +544,8 @@ def collect_next(args):
             # concept's own relative path rather than hardcoding it.
             rows.append({"id": fm["id"], "state": state,
                          "command": cmd, "skill": skill,
-                         "scope": "flow", "arg": Path(rel).stem})
+                         "scope": "flow", "arg": Path(rel).stem,
+                         "also": []})
 
     if not rows and only:
         sys.exit(f"next: no story matching '{only}'")
@@ -402,8 +557,8 @@ def collect_next(args):
         # would open onto a crash instead of onto its first step.
         banners.append({
             "state": "empty bundle -- no stories or flows yet",
-            "command": ("py tools/wiki.py ingest-prd"
-                        "   # place the PRD under inputs/prd/v1/ first"),
+            "command": ('py tools/wiki.py ingest-prd --prd <id> --title "<title>"'
+                        "   # place the PRD under inputs/prd/<id>/v1/ first"),
             "skill": ("tc-align (align the first story once the PRD is "
                       "ingested)")})
     return {"banners": banners, "rows": rows,
@@ -431,4 +586,6 @@ def cmd_next(args):
         if r["command"]:
             print(f"    next:  {r['command']}")
         print(f"    skill: {r['skill']}")
+        for a in r.get("also") or []:
+            print(f"    also:  {a['state']} -> {a['command']}  ({a['skill']})")
     print("\n(read-only; nothing was written. `wiki status` for raw state.)")

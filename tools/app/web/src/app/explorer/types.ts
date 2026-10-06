@@ -7,7 +7,7 @@ export type Field =
 
 export type TreeGroup = {
   kind: string; label: string; count: number
-  items: { ref: string; title: string | null; status: string | null }[]
+  items: { ref: string; title: string | null; status: string | null; prd?: string | null }[]
 }
 
 export type Facets = {
@@ -21,7 +21,7 @@ export type DocView = {
   version: unknown; type?: string | null; fields: Field[]; body_md: string; facets: Facets
 }
 
-export type GraphNodeRaw = { id: string; type: string; label?: string; state?: string }
+export type GraphNodeRaw = { id: string; type: string; label?: string; state?: string; prd?: string | null }
 export type GraphLinkRaw = { source: string; target: string; type: string }
 export type GraphModel = { nodes: GraphNodeRaw[]; links: GraphLinkRaw[] }
 

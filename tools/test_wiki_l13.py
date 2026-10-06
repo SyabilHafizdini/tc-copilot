@@ -376,6 +376,39 @@ def test_l13_still_accepts_human_stated_with_no_sources():
     assert not errs, errs
 
 
+REG = {"schema_version": 2, "prds": {
+    "rental-application": {"title": "A", "adopted_version": 1, "staged_version": None},
+    "rental-payment": {"title": "P", "adopted_version": 1, "staged_version": None}}}
+
+
+def test_l13_accepts_refs_under_any_registered_prd():
+    s = dict(STORY, provenance="prd-verbatim",
+             derived_from=["/sources/prd/rental-application/1-1.md",
+                           "/sources/prd/rental-payment/1-1.md"])
+    assert l13_errors({"stories/US-T": (s, "")}, REG) == []
+
+
+def test_l13_rejects_a_ref_to_an_unregistered_prd_directory():
+    s = dict(STORY, provenance="prd-verbatim",
+             derived_from=["/sources/prd/rental-application/1-1.md",
+                           "/sources/prd/rental-fees/1-1.md"])
+    errs = l13_errors({"stories/US-T": (s, "")}, REG)
+    assert len(errs) == 1, errs
+    assert "rental-fees" in errs[0] and "not registered" in errs[0], errs
+    assert "rental-application, rental-payment" in errs[0], "the refusal lists the ids"
+
+
+def test_l13_rejects_a_flat_schema1_ref_once_a_manifest_is_given():
+    s = dict(STORY, provenance="prd-verbatim", derived_from=["/sources/prd/1-1.md"])
+    errs = l13_errors({"stories/US-T": (s, "")}, REG)
+    assert len(errs) == 1 and "sources/prd/<prd-id>/" in errs[0], errs
+
+
+def test_l13_without_a_manifest_does_not_check_registration():
+    s = dict(STORY, provenance="prd-verbatim", derived_from=["/sources/prd/1-1.md"])
+    assert l13_errors({"stories/US-T": (s, "")}) == []
+
+
 if __name__ == "__main__":
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):

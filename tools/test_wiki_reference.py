@@ -69,8 +69,7 @@ def _fake_root(files):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8", newline="\n")
     (root / "manifest.json").write_text(
-        json.dumps({"schema_version": 1, "adopted_prd_version": None,
-                    "staged_prd_version": None, "id_config_frozen": False,
+        json.dumps({"schema_version": 2, "prds": {}, "id_config_frozen": False,
                     "counters": {}, "sources": {}, "concepts": {},
                     "bindings": {}, "tc_hashes": {}, "edges": []}),
         encoding="utf-8", newline="\n")

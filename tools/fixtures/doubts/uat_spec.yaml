@@ -1,0 +1,16 @@
+flow: /flows/FLOW-FIXTURE-DOUBTS.md
+scenario_id: "SC-UAT-FIX-{jid}"
+entries:
+  J01:
+    title: Fixture journey one
+    objective: Fixture objective.
+    steps: "1. Log in with profile A."
+    expected: "Home shown."
+    confidence: {scenario: High, steps: Medium, data: Medium, expected: High}
+    remarks: {steps: "Assumed.", data: "Profile guessed."}
+  J02:
+    title: Fixture journey two
+    objective: Orphan objective.
+    steps: "1. Do it."
+    expected: "Done."
+    confidence: {scenario: High, steps: High, data: High, expected: Low}

@@ -20,7 +20,7 @@ def test_collect_next_shape():
     assert set(out) == {"banners", "rows", "phase"}, out.keys()
     assert isinstance(out["rows"], list) and out["rows"], "expected at least one row"
     for r in out["rows"]:
-        assert set(r) == {"id", "state", "command", "skill", "scope", "arg"}, r
+        assert set(r) == {"id", "state", "command", "skill", "scope", "arg", "also"}, r
         assert isinstance(r["id"], str) and r["id"]
         assert isinstance(r["state"], str) and r["state"]
         assert r["command"] is None or isinstance(r["command"], str)
@@ -31,15 +31,20 @@ def test_collect_next_shape():
 
 def test_flow_row_arg_is_the_file_stem_not_the_row_id():
     """actions.build's gate --flow keys on the flow's file stem (e.g.
-    "production-monitoring-e2e"), which is neither the row id (e.g.
-    "FLOW-production-monitoring") nor derivable from it -- the read model
+    "example-module-e2e"), which is neither the row id (e.g.
+    "FLOW-example-module") nor derivable from it -- the read model
     must carry it explicitly."""
     need("Flow")
     flow_rows = [r for r in collect_next([])["rows"] if r["scope"] == "flow"]
     assert flow_rows, "bundle has Flow concepts but next emitted no flow row"
+    from wiki import read_concept
     for r in flow_rows:
         assert isinstance(r["arg"], str) and r["arg"]
-        assert r["arg"] != r["id"], r
+        # The contract is "arg IS the file stem", not "arg differs from id":
+        # a project may name flows/<id>.md after the id, and then the two
+        # coincide legitimately. Check the stem resolves to this flow's file.
+        fm, _ = read_concept(ROOT / "flows" / f"{r['arg']}.md")
+        assert fm and fm.get("id") == r["id"], (r, fm)
 
 
 def test_story_filter_narrows_rows():
@@ -70,6 +75,55 @@ def test_text_output_still_works():
                        cwd=ROOT, capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert "skill:" in r.stdout, r.stdout
+
+
+def test_flow_command_names_a_file_that_exists():
+    """The command `next` prints must be runnable as printed: the script it
+    names has to exist. A hard-coded per-flow script name pointed at a file
+    this bundle never had."""
+    import re
+    need("Flow")
+    for r in collect_next([])["rows"]:
+        if r["scope"] != "flow" or not r["command"]:
+            continue
+        for script in re.findall(r"py (tools/[\w./-]+\.py)", r["command"]):
+            assert (ROOT / script).exists(), (script, r)
+
+
+def test_flow_render_command_uses_the_flow_id_not_the_file_stem():
+    """render_uat.py --flow and tools/uat_specs/<X>.yaml key on the FLOW ID.
+    A flow whose file stem differs from its id (flows/<name>-e2e.md holding
+    FLOW-<name>) must still print `--flow FLOW-<name>`. The synthetic half
+    feeds collect_next such a flow and needs no project content."""
+    import re
+    import wiki_next
+    fm = {"id": "FLOW-demo", "type": "Flow", "status": "aligned", "stories": [],
+          "journey": [{"id": "J01"}]}
+    real = wiki_next.all_concepts, wiki_next.load_manifest
+    wiki_next.all_concepts = lambda: [("flows/demo-e2e.md", fm, "", None)]
+    wiki_next.load_manifest = lambda: {"concepts": {}, "tc_hashes": {}}
+    try:
+        row = next(r for r in collect_next(["--brief"])["rows"] if r["scope"] == "flow")
+    finally:
+        wiki_next.all_concepts, wiki_next.load_manifest = real
+    assert row["arg"] == "demo-e2e", row  # gate --flow keeps the file stem
+    flag = re.search(r"--flow (\S+)", row["command"])
+    assert flag and flag.group(1) == "FLOW-demo", row["command"]
+    # live rows: the printed --flow value is the row's flow id, and a row that
+    # tells the author to re-render existing UAT test cases names a spec file
+    # that exists.
+    if not any(r["scope"] == "flow" for r in collect_next([])["rows"]):
+        print("[SKIP-REASON] no Flow concept in this checkout; live-row half skipped")
+        return
+    for r in collect_next([])["rows"]:
+        if r["scope"] != "flow" or not r["command"]:
+            continue
+        m = re.search(r"render_uat\.py --flow (\S+)", r["command"])
+        if not m:
+            continue
+        assert m.group(1) == r["id"], (m.group(1), r)
+        if "--force" in r["command"]:
+            assert (ROOT / "tools" / "uat_specs" / f"{m.group(1)}.yaml").exists(), r
 
 
 if __name__ == "__main__":

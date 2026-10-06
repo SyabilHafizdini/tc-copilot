@@ -77,6 +77,17 @@ describe('ItemView (AC/BR/component drill-down)', () => {
     expect(screen.getByRole('button', { name: /In chat selection/ })).toBeInTheDocument()
   })
 
+  it('offers no Add to chat button when chat is disabled', () => {
+    render(
+      <SelectionProvider chatEnabled={false}>
+        <ItemView doc={story} frag="AC1" graph={graph} docs={docs} onNavigate={() => {}} />
+      </SelectionProvider>,
+    )
+    expect(screen.getByText('Acceptance Criterion')).toBeInTheDocument()
+    expect(screen.getByText('Given a vault, verify the hold.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add to chat|in chat selection/i })).toBeNull()
+  })
+
   it('falls back to the graph label for components (no text field)', () => {
     const compDoc: DocView = {
       ...story,

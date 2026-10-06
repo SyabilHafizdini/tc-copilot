@@ -1,0 +1,19 @@
+story: /stories/US-LIFT-FIX.md
+questions:
+  - id: Q-US-LIFT-FIX-01
+    question: "Which fixture profile is used, and which mailbox receives the email?"
+    about: [HS-01]
+    home: "table:Scenario data"
+    proposed: "Profile A and mailbox X."
+    members:
+      - SC-LIFT-HS-01-01#steps
+      - SC-LIFT-HS-01-01#data
+      - SC-UAT-LIFT-J01#data
+  - id: Q-US-LIFT-FIX-02
+    question: "What does the fixture page show on timeout?"
+    about: [HS-02]
+    home: "rule:new"
+    proposed: null
+    members:
+      - SC-LIFT-HS-02-02#scenario
+      - SC-LIFT-HS-02-02#expected

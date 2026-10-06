@@ -1,0 +1,12 @@
+# Config for the two-PRD scratch roots built by tools/testkit.py.
+project:
+  name: "Multi PRD fixture"
+  code: MPF
+  okf_version: "0.1"
+ids:
+  tc_format: "{story_num}-AC{ac_num:02d}-{seq:02d}"
+  tc_format_uat: "UAT-{story_num}-AC{ac_num:02d}-{seq:02d}"
+provenance:
+  agent_git_name: "tc-agent"
+  agent_git_email: "tc-agent@internal"
+  human: "tester"

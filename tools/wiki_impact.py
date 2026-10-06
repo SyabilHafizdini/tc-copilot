@@ -10,7 +10,7 @@ same determinism as `cascade`, asked ahead of time.
     stories/US-XXXX                  (concept rel)
     stories/US-XXXX#BR-XXXX-04       (business-rule fragment)
     stories/US-XXXX#1.1.3.1.1-AC19   (acceptance-criterion fragment)
-    sources/prd/4-1-1-1  /  prd#4-1-1-1   (PRD section, rel or id)
+    sources/prd/<prd-id>/4-1-1-1  /  prd#<prd-id>/4-1-1-1   (PRD section, rel or id)
 
 The traversal walks the dependency edges backwards (a thing that pins/covers/
 derives-from the target is impacted by it) and reports each reached node with
@@ -26,7 +26,7 @@ its CASCADE VERDICT — the honest split the user cares about:
 
 Usage:
     py tools/wiki.py impact stories/US-XXXX#BR-XXXX-04
-    py tools/wiki.py impact sources/prd/4-1-1-1 --json
+    py tools/wiki.py impact sources/prd/<prd-id>/4-1-1-1 --json
 """
 import json
 import sys
@@ -112,6 +112,8 @@ def _build_context():
 
 def _resolve_query(ref, ctx):
     """Map a user-supplied ref to a canonical node id, or exit with guidance."""
+    if ref in ctx["src_id_to_rel"]:                 # 'prd#rental-payment/1-1'
+        return ctx["src_id_to_rel"][ref]
     rel, frag = resolve_ref(ref)
     if frag:
         node = f"{rel}#{frag}"

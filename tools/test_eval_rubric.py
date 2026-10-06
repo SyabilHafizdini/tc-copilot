@@ -498,22 +498,45 @@ def test_tc_records_excludes_retired_test_cases():
     assert [r["id"] for r in out] == ["TC-1"]
 
 
+def test_story_scope_leaves_uat_test_cases_to_their_flow():
+    """A UAT test case covers a story AC AND its flow's journey entry. It is
+    measured under the FLOW (whose model defines SC-MAIN); counting it in the
+    story scope too scored it against a model that does not define its
+    coverage item and dragged the story's number down."""
+    uat = dict(_tc_fm("UAT-1", "US-1"), kind="uat")
+    uat["covers"] = list(uat["covers"]) + ["/flows/F-1.md#J01"]
+    concepts = {
+        "stories/US-1": (_story_fm("US-1"), "", None),
+        "testcases/TC-1": (dict(_tc_fm("TC-1", "US-1"), kind="sit"), "b1", None),
+        "testcases/UAT-1": (uat, "b2", None),
+    }
+    assert [r["id"] for r in _tc_records(concepts, "stories/US-1")] == ["TC-1"]
+    assert [r["id"] for r in _tc_records(concepts, "flows/F-1")] == ["UAT-1"]
+
+
 def test_tc_records_keeps_only_the_scope_kind():
     """I5: a story's rubric set is its SIT cases, a flow's is its UAT cases -
     a UAT case covering the story's AC is not part of the story's set. A
-    record without a `kind` (legacy fixture) is kept."""
+    record without a `kind` (legacy fixture) is kept. A story scope leaves
+    its UAT cases to their flow whatever `kind` is asked for."""
     sit = dict(_tc_fm("TC-1", "US-1"), kind="sit")
     uat = dict(_tc_fm("TC-2", "US-1"), kind="uat")
+    uat["covers"] = list(uat["covers"]) + ["/flows/F-1.md#J01"]
     legacy = _tc_fm("TC-3", "US-1")
+    legacy_flow = dict(_tc_fm("TC-4", "US-1"))
+    legacy_flow["covers"] = ["/flows/F-1.md#J02"]
     concepts = {
         "stories/US-1": (_story_fm("US-1"), "", None),
         "testcases/TC-1": (sit, "b1", None),
         "testcases/TC-2": (uat, "b2", None),
         "testcases/TC-3": (legacy, "b3", None),
+        "testcases/TC-4": (legacy_flow, "b4", None),
     }
     assert [r["id"] for r in _tc_records(concepts, "stories/US-1", kind="sit")] == ["TC-1", "TC-3"]
-    assert [r["id"] for r in _tc_records(concepts, "stories/US-1", kind="uat")] == ["TC-2", "TC-3"]
-    assert [r["id"] for r in _tc_records(concepts, "stories/US-1")] == ["TC-1", "TC-2", "TC-3"]
+    assert [r["id"] for r in _tc_records(concepts, "flows/F-1", kind="uat")] == ["TC-2", "TC-4"]
+    assert [r["id"] for r in _tc_records(concepts, "flows/F-1", kind="sit")] == ["TC-4"]
+    assert [r["id"] for r in _tc_records(concepts, "stories/US-1")] == ["TC-1", "TC-3"]
+    assert [r["id"] for r in _tc_records(concepts, "flows/F-1")] == ["TC-2", "TC-4"]
 
 
 def test_score_scope_resolves_a_bare_story_id_to_the_concept_key():

@@ -5,26 +5,15 @@ Replaces the per-flow `render_<flow>_uat.py` copies. One test case per journey
 entry of a flow, each starting exactly where the previous one ended. The
 journey is the asserted `journey:` of flows/<FLOW>.md; the spec
 `tools/uat_specs/<FLOW>.yaml` contributes WORDING only (area, priority, title,
-objective, steps, expected) and never decides which entries exist. The spec
-declares top-level `profiles` (name: description of the data set) and every
-entry names its `profile`; an entry that continues its predecessor
-(`continue_from`, else the previous entry) with another profile, or a state a
-second entry already continues, must carry `fresh_run: true`: the run is
-replayed to that point and the precondition is worded
-`Continue from TC-<id> (fresh run replayed to this point)`. That one value
-also sets the frontmatter `fresh_run`.
-A journey `end_state` written as a place ("the Orders page") is worded
-`user is at the Orders page.`; one written as a sentence (ending in a full
-stop) is carried verbatim.
+objective, steps, expected, confidence + remarks per part) and never decides
+which entries exist. The spec declares top-level `profiles` (name: description
+of the data set) and every entry names its `profile`; an entry that
+continues its predecessor (`continue_from`, else the previous entry) with
+another profile, or a state a second entry already continues, must carry
+`fresh_run: true`: the run is replayed to that point and the precondition is
+worded `Continue from TC-<id> (fresh run replayed to this point)`. That one
+value also sets the frontmatter `fresh_run`.
 Re-running on an unchanged wiki prints `rendered 0`.
-
-`module` is optional. A test case with a module lands on that module's
-workbook sheet; without one it lands on its flow's sheet, so omit `module`
-for one sheet per flow.
-
-`confidence` and `remarks` on an entry are accepted and shape-checked but NOT
-rendered: this base has no confidence machinery. They are kept in the format
-so a spec written here stays valid on a platform that renders them.
 
 Run:
     py tools/render_uat.py --flow <FLOW-ID> [--force]
@@ -49,20 +38,21 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent))
 from wiki import (ROOT, covmap_hash, fragment_hash_map, load_config,
-                  load_manifest, read_concept, resolve_ref, write_concept)
-from wiki_coverage import element_verification_block, load_coverage
-from render_sit import provenance_only_change
+                  load_manifest, read_concept, refuse_if_schema1, resolve_ref,
+                  write_concept)
+from wiki_coverage import (ELEMENT_BLOCK_LEAD, element_verification_block,
+                           load_coverage)
+from render_sit import (CONF_PARTS, confidence_block, confidence_errors,
+                        confidence_parts, overall_confidence, provenance,
+                        trace_source, write_test_case)
 
 SPEC_DIR = Path(os.environ.get("TC_UAT_SPEC_DIR") or Path(__file__).parent / "uat_specs")
-SPEC_REQUIRED = ("flow", "out", "story_num", "scenario_id",
+SPEC_REQUIRED = ("flow", "module", "out", "story_num", "scenario_id",
                  "generator_version", "profiles", "entries")
-SPEC_OPTIONAL = ("module",)
+SPEC_OPTIONAL = ()
 ENTRY_REQUIRED = ("area", "priority", "title", "objective", "steps", "expected",
-                  "profile")
-ENTRY_OPTIONAL = ("alts", "continue_from", "fresh_run", "confidence", "remarks")
-CONF_PARTS = ("scenario", "steps", "data", "expected")
-CONF_LEVELS = ("High", "Medium", "Low")
-PRIORITIES = {"P1", "P2", "P3"}
+                  "confidence", "profile")
+ENTRY_OPTIONAL = ("alts", "continue_from", "fresh_run", "remarks")
 TEST_DATA = "-"   # tc-style: the chained precondition fills Field / Values
 
 
@@ -118,40 +108,13 @@ def state_sentence(end_state):
     return s if s.endswith(".") else f"{s}."
 
 
-def prd_label(version):
-    return f"PRD v{version}" if version is not None else "no PRD"
-
-
 def with_element_block(story_fm, expected, ac_id):
     block = element_verification_block(story_fm, ac_id)
     if not block:
         return expected
     nums = [int(x) for x in re.findall(r"(?m)^(\d+)\.", expected)]
     n = (max(nums) + 1) if nums else 1
-    return (f"{expected}\n{n}. The following elements are displayed and "
-            f"labelled correctly:\n{block}")
-
-
-def confidence_errors(conf, rem, where):
-    """Shape check only - the levels are not rendered on this base."""
-    errs = []
-    if not isinstance(conf, dict):
-        return [f"{where}: confidence must be a mapping of "
-                f"{', '.join(CONF_PARTS)} to {' | '.join(CONF_LEVELS)}"]
-    rem = rem if isinstance(rem, dict) else {}
-    for p in CONF_PARTS:
-        if p not in conf:
-            errs.append(f"{where}: missing confidence.{p}")
-        elif conf[p] not in CONF_LEVELS:
-            errs.append(f"{where}: confidence.{p} must be one of "
-                        f"{' | '.join(CONF_LEVELS)}, got {conf[p]!r}")
-        elif conf[p] != "High" and not str(rem.get(p) or "").strip():
-            errs.append(f"{where}: confidence.{p} is {conf[p]} - say why in "
-                        f"remarks.{p}")
-    for p in conf:
-        if p not in CONF_PARTS:
-            errs.append(f"{where}: unknown confidence part '{p}'")
-    return errs
+    return f"{expected}\n{n}. {ELEMENT_BLOCK_LEAD}\n{block}"
 
 
 def validate_uat_spec(spec, path):
@@ -189,14 +152,8 @@ def validate_uat_spec(spec, path):
         for k in ENTRY_REQUIRED:
             if not e.get(k):
                 errs.append(f"{where}: missing required key '{k}'")
-        if e.get("priority") and e["priority"] not in PRIORITIES:
-            errs.append(f"{where}: priority must be one of "
-                        f"{', '.join(sorted(PRIORITIES))}")
         if e.get("confidence") is not None:
             errs.extend(confidence_errors(e["confidence"], e.get("remarks"), where))
-        if "alts" in e and not (isinstance(e["alts"], list)
-                                and all(isinstance(a, str) for a in e["alts"])):
-            errs.append(f"{where}: alts must be a list of test_model item ids")
         prof = e.get("profile")
         if prof and not isinstance(prof, str):
             errs.append(f"{where}: profile must be a profile name")
@@ -249,17 +206,6 @@ def load_uat_spec(flow_id):
     return spec
 
 
-def alt_errors(entries, flow_fm, flow_id):
-    """Every `alts` id must be an alternative scenario of the flow's model."""
-    items = ((flow_fm.get("test_model") or {}).get("items") or [])
-    known = {i.get("id") for i in items
-             if isinstance(i, dict) and i.get("role") == "alternative"}
-    return [f"entries.{jid}: alts '{a}' is not an alternative scenario of "
-            f"{flow_id}'s test_model ({', '.join(sorted(known)) or 'none defined'})"
-            for jid, e in entries.items() for a in (e.get("alts") or [])
-            if a not in known]
-
-
 def render(flow_id, force=False):
     spec = load_uat_spec(flow_id)
     entries = spec["entries"]
@@ -290,19 +236,12 @@ def render(flow_id, force=False):
     if os.environ.get("TC_UAT_FIXTURE_DIR"):
         _fail("render UAT REFUSED: fixture mode never writes")
 
-    aerrs = alt_errors(entries, flow_fm, flow_id)
-    if aerrs:
-        _fail(f"UAT SPEC alts do not match {flow_id}'s test_model\n"
-              + "\n".join(f"  ERROR {x}" for x in aerrs))
-
     flow_ref = spec["flow"]
     entry_condition = flow_fm.get("entry_condition") or "Flow entry condition."
     wiki_commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
                                  capture_output=True, text=True).stdout.strip()
-    generated_from = {"prd_version": manifest.get("adopted_prd_version"),
-                      "figma_hashes": {},
-                      "wiki_commit": wiki_commit,
-                      "generator_version": spec["generator_version"]}
+    generated_from = provenance(list(stories.values()), manifest, {},
+                                wiki_commit, spec["generator_version"])
     by_jid = {e["id"]: e for e in journey}
     in_spec = [e["id"] for e in journey if e["id"] in entries]
     if in_spec != [k for k in entries if k in by_jid]:
@@ -335,7 +274,27 @@ def render(flow_id, force=False):
                 return False
         return True
 
-    count = skipped = 0
+    # --- the raise ratchet: only a human answer raises a level ------------
+    # Every entry with an existing file is checked, skipped or not, forced or
+    # not, before anything is written. There is no override.
+    import wiki_doubts   # lazy: wiki_doubts imports render_sit
+    lifts = wiki_doubts.load_lifts()
+    raised = []
+    for e in journey:
+        w = entries.get(e["id"])
+        b = binding_of(spec["scenario_id"].format(jid=e["id"]))
+        if w and b and b.get("status") != "retired"                 and isinstance(w.get("confidence"), dict):
+            raised.extend(wiki_doubts.raise_errors(
+                wiki_doubts.existing_fm(b), w["confidence"],
+                spec["scenario_id"].format(jid=e["id"]),
+                story=Path(resolve_ref(e["ref"])[0]).name))
+    if raised:
+        _fail("render UAT REFUSED: confidence raised without a human answer "
+              f"in {flow_id}\n"
+              + "\n".join(f"  ERROR {x}" for x in raised)
+              + f"\n\n  {len(raised)} problem(s). Nothing was written.")
+
+    count = skipped = same = 0
     suppressed = []
     prev_jid = None
     for e in journey:
@@ -344,6 +303,11 @@ def render(flow_id, force=False):
         if not w:
             _fail(f"render UAT: no wording for journey entry {jid} - add it "
                   f"to tools/uat_specs/{flow_id}.yaml")
+        conf = dict(w["confidence"])
+        rem = dict(w.get("remarks") or {})
+        cerrs = confidence_errors(conf, rem, f"render UAT: journey entry {jid}")
+        if cerrs:
+            _fail("\n".join(cerrs))
         story_rel, ac_id = resolve_ref(e["ref"])
         story_fm = stories[story_rel]
         sc = spec["scenario_id"].format(jid=jid)
@@ -353,7 +317,12 @@ def render(flow_id, force=False):
             suppressed.append(f"{sc} suppressed - prior TC {wid} retired")
             prev_jid = jid
             continue
-        if not force and fragments_unchanged(sc):
+        conf, rem, lifted = wiki_doubts.effective_confidence(
+            conf, rem, sc,
+            {p: wiki_doubts.part_basis("uat", w, p) for p in CONF_PARTS}, lifts)
+        level = overall_confidence(conf)
+        if not force and fragments_unchanged(sc) and not wiki_doubts.lift_changed(
+                b, lifted):
             skipped += 1
             prev_jid = jid
             continue
@@ -376,11 +345,7 @@ def render(flow_id, force=False):
         fm = {
             "type": "Test Case", "id": wid, "title": w["title"],
             "description": w["objective"], "kind": "uat",
-        }
-        if spec.get("module"):
-            fm["module"] = spec["module"]
-        fm.update({
-            "flow": flow_ref, "area": w["area"],
+            "module": spec["module"], "flow": flow_ref, "area": w["area"],
             "status": "active", "origin": "agent-proposed",
             "covers": covers, "coverage_items": items,
             "verifies_rules": [], "uses_terms": [],
@@ -389,11 +354,14 @@ def render(flow_id, force=False):
             "continue_from": (ids_by_jid[cont].removeprefix("UAT-")
                               if cont is not None else None),
             "fresh_run": bool(w.get("fresh_run")),
-            "generated_from": dict(generated_from), "stale_because": [],
-        })
+            "confidence": level,
+            "confidence_parts": wiki_doubts.merge_lifted(
+                confidence_parts(conf, rem), lifted),
+            "generated_from": generated_from, "stale_because": [],
+        }
         trace = ("- Covers: " + ", ".join(covers)
                  + f"\n- Scenario: {sc} · Technique: UC · journey {jid} of {flow_id}"
-                 f" · {prd_label(generated_from['prd_version'])} · wiki {wiki_commit}")
+                 f" · {trace_source(generated_from, manifest)}")
         body = (f"# Objective\n\n{w['objective']}\n\n"
                 f"# Preconditions\n\n{pre}\n\n"
                 f"# Test Data\n\n{TEST_DATA}\n\n"
@@ -401,32 +369,27 @@ def render(flow_id, force=False):
                 f"# Expected Results\n\n"
                 f"{with_element_block(story_fm, w['expected'], ac_id)}\n\n"
                 f"# Postconditions\n\n{state_sentence(e['end_state'])}\n\n"
+                f"# Confidence\n\n{confidence_block(conf, rem)}\n\n"
                 f"# Traceability\n\n{trace}\n")
-        path = out_dir / f"{wid}.md"
-        if path.exists():
-            # An unchanged test case is not rewritten, forced or not: only the
-            # provenance would move, and with it the sealed hash.
-            prev_fm, prev_body = read_concept(path)
-            if provenance_only_change(prev_fm, prev_body, fm, body):
-                skipped += 1
-                prev_jid = jid
-                continue
-        write_concept(path, fm, body)
-        count += 1
+        if write_test_case(out_dir / f"{wid}.md", fm, body):
+            count += 1
+        else:
+            same += 1
         prev_jid = jid
     for s in suppressed:
         print("SUPPRESSED", s)
-    print(f"rendered {count}, untouched {skipped} (fragments or content "
-          f"unchanged), suppressed {len(suppressed)} -> {out_dir.relative_to(ROOT)}")
+    print(f"rendered {count}, untouched {skipped} (fragments unchanged), "
+          + (f"unchanged {same} (same text), " if same else "")
+          + f"suppressed {len(suppressed)} -> {out_dir.relative_to(ROOT)}")
 
 
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if "--flow" not in argv or argv.index("--flow") + 1 >= len(argv):
-        have = sorted(p.stem for p in SPEC_DIR.glob("*.yaml")) \
-            if SPEC_DIR.exists() else []
+        have = sorted(p.stem for p in SPEC_DIR.glob("*.yaml"))
         _fail("usage: py tools/render_uat.py --flow <FLOW-ID> [--force]\n"
               f"  specs available: {', '.join(have) or '(none)'}")
+    refuse_if_schema1(load_manifest(), "render_uat")
     render(argv[argv.index("--flow") + 1], force="--force" in argv)
 
 

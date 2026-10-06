@@ -8,7 +8,7 @@ only part that touches the filesystem.
 
 Why refusals matter more than routing here: a Figma PNG's filename stem
 becomes the page's PERMANENT concept id (figma#<stem>), and a PRD's folder
-name IS its version. Guessing either wrong writes an identity that later
+directory names both the PRD and its version (`inputs/prd/<id>/vN/`). Guessing either wrong writes an identity that later
 concepts reference forever, so an ambiguous name is refused, never guessed.
 """
 import hashlib
@@ -18,7 +18,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from wiki import FURNITURE, ROOT, sha256
+from wiki import (FURNITURE, ROOT, adopted_version, prd_id_problem, prd_registry,
+                  prd_rows, sha256, staged_version)
 
 # A stem that is a real page name, not a camera/clipboard artefact -- or a
 # Figma default node name nobody renamed (Frame 12, Group3, Rectangle 5, ...).
@@ -46,11 +47,84 @@ _PRD_OPTIONS = ["prd", "reference", "ignore"]
 _REF_OPTIONS = ["reference", "ignore"]
 
 
-def next_prd_version(manifest):
-    """v1 when nothing is adopted, else adopted+1 (a newer PRD stages a
-    change report -- see wiki_change.stage_prd_version)."""
-    adopted = manifest.get("adopted_prd_version")
+def next_prd_version(manifest, prd_id):
+    """The version a new document of `prd_id` would be: v1 when that PRD has
+    nothing adopted, else adopted + 1. Only ever SUGGESTED in a refusal -
+    the human confirms the version, triage does not assume it."""
+    adopted = adopted_version(manifest, prd_id)
     return 1 if not adopted else int(adopted) + 1
+
+
+def _prd_answer(manifest, prd_id, prd_title, rel):
+    """Which PRD a file answered 'prd' belongs to. Never inferred from the
+    file name: an explicit --prd, or the single registered PRD."""
+    reg = prd_registry(manifest)
+    listing = ", ".join(sorted(reg)) or "(none)"
+    if prd_id is None:
+        if len(reg) == 1:
+            prd_id = next(iter(reg))
+        else:
+            sys.exit(
+                f"triage --apply refused: '{rel}' is answered 'prd' but no PRD "
+                f"was named.\n  Registered: {listing}\n"
+                f"  Ask the human which PRD this document is, then re-run with "
+                f"--prd <id> (a PRD that is not registered yet also needs "
+                f'--prd-title "<title>").\n'
+                f"  Triage never guesses the PRD from the file name.")
+    # The id becomes a directory name: it must pass the one rule for PRD ids
+    # (wiki.prd_id_problem) before it is used. A registered id is not
+    # re-judged.
+    problem = prd_id_problem(prd_id) if prd_id not in reg else None
+    if problem:
+        sys.exit(f"triage --apply refused: --prd {problem}")
+    if prd_id not in reg and not (prd_title or "").strip():
+        sys.exit(
+            f"triage --apply refused: '{prd_id}' is not a registered PRD and "
+            f"no --prd-title was given.\n  Registered: {listing}\n"
+            f"  If '{rel}' starts a new PRD, re-run with --prd {prd_id} "
+            f'--prd-title "<title>"; otherwise name one of the registered '
+            f"ids.")
+    return prd_id
+
+
+_VERSION_ANSWER = re.compile(r"[1-9][0-9]*")
+
+
+def _check_version(manifest, pid, prd_version, rel):
+    """The version answer as an int, or a refusal. It must be one ingest-prd
+    would accept (v<N>, N a whole number from 1, no leading zero, not below
+    the adopted or the staged version). A version equal to the adopted or the
+    staged one is allowed only while its directory is empty: ingest-prd then
+    re-reads it (adopted) or re-stages it (staged); an occupied directory is
+    refused by the one-document-per-version rule."""
+    if not _VERSION_ANSWER.fullmatch(str(prd_version)):
+        sys.exit(f"triage --apply refused: --prd-version '{prd_version}' is "
+                 f"not a version: use a whole number from 1, no leading zero "
+                 f"(inputs/prd/{pid}/v<N>/).")
+    v = int(prd_version)
+    adopted = adopted_version(manifest, pid)
+    staged = staged_version(manifest, pid)
+    nxt = next_prd_version(manifest, pid)
+    if adopted and v < int(adopted):
+        sys.exit(f"triage --apply refused: {pid} v{adopted} is already "
+                 f"adopted, so v{v} would never be read by ingest-prd.\n"
+                 f"  Re-run with --prd-version {nxt} (or higher).")
+    if staged and v < int(staged):
+        sys.exit(f"triage --apply refused: {pid} v{staged} is already staged "
+                 f"as a pending change report, so ingest-prd reads v{staged} "
+                 f"and never '{rel}' as v{v}.\n"
+                 f"  Approve or reject that report first, or use "
+                 f"--prd-version {int(staged) + 1} (or higher).")
+    return v
+
+
+def _next_free_version(root, pid, v):
+    """The first version above `v` whose directory holds no PRD document."""
+    n = v + 1
+    while any(p.suffix.lower() in PRD_EXT
+              for p in (Path(root) / f"inputs/prd/{pid}/v{n}").glob("*")):
+        n += 1
+    return n
 
 
 def classify(path, manifest, root=ROOT, prd_version=None):
@@ -87,7 +161,8 @@ def classify(path, manifest, root=ROOT, prd_version=None):
     if ext in PRD_EXT:
         out["kind"] = "prd-candidate"
         out["options"] = _PRD_OPTIONS
-        out["proposed"] = "prd" if not manifest.get("adopted_prd_version") else "reference"
+        out["proposed"] = ("reference" if any(r["adopted"] for r in prd_rows(manifest))
+                           else "prd")
         return out
 
     if ext == ".png":
@@ -256,7 +331,7 @@ def collect_plan(root, manifest, prd_version=None):
 
 
 def resolve_destinations(plan, resolved, card, dump, manifest, root=ROOT,
-                         prd_version=None):
+                         prd_version=None, prd_id=None, prd_title=None):
     """Turn each answered 'ask' decision into a concrete route (or ignore).
 
     A folder answer settles its members unless it is 'split', in which case
@@ -304,28 +379,43 @@ def resolve_destinations(plan, resolved, card, dump, manifest, root=ROOT,
             d["kind"] = None
             continue
         if answer == "prd":
-            v = int(prd_version) if prd_version else next_prd_version(manifest)
-            dest_dir = root / f"inputs/prd/v{v}"
+            pid = _prd_answer(manifest, prd_id, prd_title, rel)
+            if prd_version is None or prd_version == "":
+                nxt = next_prd_version(manifest, pid)
+                adopted = adopted_version(manifest, pid)
+                have = f"adopted v{adopted}" if adopted else "nothing adopted"
+                sys.exit(
+                    f"triage --apply refused: '{rel}' is answered 'prd' for "
+                    f"{pid} but no version was given.\n"
+                    f"  {pid} has {have}; the next version would be v{nxt}.\n"
+                    f"  Confirm the version with the human, then re-run with "
+                    f"--prd-version {nxt}.")
+            v = _check_version(manifest, pid, prd_version, rel)
+            dest_dir = root / f"inputs/prd/{pid}/v{v}"
             occupied = [p for p in dest_dir.glob("*")
                         if p.suffix.lower() in PRD_EXT] if dest_dir.exists() else []
             if occupied:
                 sys.exit(
-                    f"triage --apply refused: inputs/prd/v{v}/ already holds "
+                    f"triage --apply refused: inputs/prd/{pid}/v{v}/ already holds "
                     f"{occupied[0].name} -- ingest-prd reads one document per "
-                    f"version.\n  Pass --prd-version N for a different "
-                    f"version, or remove the existing document first.")
+                    f"version.\n  The next free version is "
+                    f"v{_next_free_version(root, pid, v)}: re-run with "
+                    f"--prd-version {_next_free_version(root, pid, v)}, or "
+                    f"move the old document out yourself. Triage never "
+                    f"overwrites or deletes a PRD document.")
             # Two files answered 'prd' would both land in v{v}, and
             # latest_prd_input() picks files[0] -- one PRD would be ingested
             # and the other silently ignored. Refuse instead.
             if claimed_prd:
                 sys.exit(
                     f"triage --apply refused: '{claimed_prd[0]}' and "
-                    f"'{rel}' are both answered 'prd' for v{v} -- ingest-prd "
+                    f"'{rel}' are both answered 'prd' for {pid} v{v} -- ingest-prd "
                     f"reads one document per version and would silently "
                     f"ingest only one.\n  Answer one of them 'reference', or "
                     f"apply them separately with --prd-version N.")
             claimed_prd.append(rel)
             d["kind"] = "prd"
+            d["prd"] = pid
             d["action"] = "route"
             d["dest"] = dest_dir / d["src"].name
             continue
@@ -354,10 +444,20 @@ def apply_plan(plan):
     return moved
 
 
-_FOLLOW_UP = {"prd": "py tools/wiki.py ingest-prd",
-              "figma": "py tools/wiki.py ingest-figma",
+_FOLLOW_UP = {"figma": "py tools/wiki.py ingest-figma",
               "deck": "py tools/wiki.py ingest-decks",
               "reference": "py tools/wiki.py ingest-reference"}
+
+
+def _follow_up(d, manifest, prd_title):
+    """The ingest command for one routed file. A PRD's names the PRD, and
+    carries --title when that PRD is not registered yet."""
+    if d["kind"] != "prd":
+        return _FOLLOW_UP[d["kind"]]
+    cmd = f"py tools/wiki.py ingest-prd --prd {d['prd']}"
+    if d["prd"] not in prd_registry(manifest):
+        cmd += f' --title "{prd_title}"'
+    return cmd
 
 
 # Re-running `triage` is the fix for every card-level refusal below: the card
@@ -529,6 +629,12 @@ def cmd_triage(args):
             int(prd_version)
         except ValueError:
             sys.exit(f"triage: --prd-version must be an integer, got '{prd_version}'")
+    prd_id = arg_after(args, "--prd") if "--prd" in args else None
+    prd_title = arg_after(args, "--prd-title") if "--prd-title" in args else None
+    if prd_title is not None and prd_id is None:
+        sys.exit("triage refused: --prd-title was given without --prd. A "
+                 "title names a NEW PRD, so say which id it is for:\n"
+                 '  --prd <id> --prd-title "<title>"')
     manifest = load_manifest()
     plan = collect_plan(ROOT, manifest, prd_version)
     if not plan:
@@ -585,7 +691,7 @@ def cmd_triage(args):
         resolved = read_answers(card_arg, plan, dump)
 
         resolve_destinations(plan, resolved, card, dump, manifest, ROOT,
-                             prd_version)
+                             prd_version, prd_id, prd_title)
 
     moved = apply_plan(plan)
     print(f"\nmoved {moved} file(s).")
@@ -608,6 +714,6 @@ def cmd_triage(args):
                   f"left in PUT_FILES_HERE/; re-run py tools/wiki.py triage")
     if moved:
         agent_commit(f"triage: routed {moved} file(s) from PUT_FILES_HERE")
-        for cmd in sorted({_FOLLOW_UP[d["kind"]] for d in plan
+        for cmd in sorted({_follow_up(d, manifest, prd_title) for d in plan
                            if d["action"] == "route" and d.get("kind")}):
             print(f"  next: {cmd}")

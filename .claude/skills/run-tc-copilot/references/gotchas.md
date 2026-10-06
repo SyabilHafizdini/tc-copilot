@@ -50,7 +50,7 @@ relative to the repo root.
   from the story's component table and is deterministic from that table
   alone; hand-editing it drifts from the coverage map silently.
 - **`--force` exists on both renderers** (`render_sit.py --story <id>`,
-  `render_uat.py --flow <id>`) — it bypasses the fragment-unchanged
+  `render_uat.py --flow <FLOW-ID>`) — it bypasses the fragment-unchanged
   skip check, needed when only the render *rules* changed (not the underlying
   wiki fragments), otherwise the renderer no-ops and byte-stability hides your
   change.

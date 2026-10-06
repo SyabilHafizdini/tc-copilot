@@ -4,6 +4,7 @@ import type { ActionResult, State } from './api'
 import { AppShell, TopBar, Sidebar, ChatPanel } from './shell'
 import { useView, hrefFor, type View } from './shell/routes'
 import { useProject } from './shell/useProject'
+import { hasUnsavedDraft } from './shell/unsaved'
 import { Banner, PageSkeleton } from './ui'
 import { Dashboard } from './dashboard/Dashboard'
 import { DocumentsPage } from './documents/DocumentsPage'
@@ -22,6 +23,7 @@ import { Projects } from './projects/Projects'
 import { SelectionProvider, SelectionBar } from './select'
 import { StoryPage } from './story/StoryPage'
 import { SuitesPage } from './suites/SuitesPage'
+import { WorkbookPage } from './workbook/WorkbookPage'
 
 type Theme = 'light' | 'dark'
 
@@ -39,6 +41,8 @@ export default function App() {
   const view = useView()
   const { id: projectId, switch: switchProject, all: projects } = useProject()
   const [theme, setTheme] = useState<Theme>(initialTheme)
+  // Chat is Off unless this browser stored exactly '1' (absent means Off).
+  const [chatEnabled, setChatEnabled] = useState(() => localStorage.getItem('tc-chat-enabled') === '1')
   const [chatOpen, setChatOpen] = useState(() => localStorage.getItem('tc-chat-open') !== '0')
   const [chatWidth, setChatWidth] = useState(() => {
     const w = Number(localStorage.getItem('tc-chat-width'))
@@ -67,6 +71,19 @@ export default function App() {
   }, [])
   const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
 
+  // A reload or a closed tab would drop text typed into an open editor: the
+  // browser asks first. (In-app navigation is guarded in useView.)
+  useEffect(() => {
+    const warn = (e: BeforeUnloadEvent) => {
+      if (!hasUnsavedDraft()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [])
+
+  useEffect(() => { localStorage.setItem('tc-chat-enabled', chatEnabled ? '1' : '0') }, [chatEnabled])
   useEffect(() => { localStorage.setItem('tc-chat-open', chatOpen ? '1' : '0') }, [chatOpen])
   useEffect(() => { localStorage.setItem('tc-chat-width', String(chatWidth)) }, [chatWidth])
 
@@ -97,6 +114,9 @@ export default function App() {
     if (view.kind === 'testcases') return <TestCasesPage />
     if (view.kind === 'activity') return <ActivityPage />
     if (view.kind === 'rtm') return <RtmPage />
+    if (view.kind === 'workbook') {
+      return <WorkbookPage wbKind={view.wbKind} file={view.file} sheet={view.sheet} row={view.row} />
+    }
     if (view.kind === 'flowbuilder') return <FlowBuilderPage theme={theme} />
     // Everything below reads from the state snapshot.
     if (!state) return <PageSkeleton />
@@ -110,14 +130,17 @@ export default function App() {
       case 'coverage': return <CoveragePage state={state} />
       case 'changes': return <ChangesPage state={state} />
       case 'settings':
-        return <SettingsPage state={state} projects={projects} theme={theme} onToggleTheme={toggleTheme} />
+        return <SettingsPage
+          state={state} projects={projects} theme={theme} onToggleTheme={toggleTheme}
+          chatEnabled={chatEnabled} onSetChatEnabled={setChatEnabled} />
     }
   }
 
   return (
-    <SelectionProvider>
+    <SelectionProvider chatEnabled={chatEnabled}>
       <AppShell
-        chat={<ChatPanel onCollapse={() => setChatOpen(false)} />}
+        chat={chatEnabled ? <ChatPanel onCollapse={() => setChatOpen(false)} /> : null}
+        chatEnabled={chatEnabled}
         chatOpen={chatOpen}
         chatWidth={chatWidth}
         onReopen={() => setChatOpen(true)}
@@ -140,6 +163,16 @@ export default function App() {
               </Banner>
             )}
           </div>
+        )}
+        {state?.schema1 && (
+          // Persistent on every route and never dismissable: until the project
+          // is migrated the PRD state shown is incomplete and every action but
+          // status and lint is refused. The text is the refusals' own.
+          <section aria-label="Migration needed" style={{ padding: '14px 20px 0' }}>
+            <Banner tone="blocked">
+              <span style={{ whiteSpace: 'pre-wrap' }}>{state.notice}</span>
+            </Banner>
+          </section>
         )}
         {body()}
       </AppShell>

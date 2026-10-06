@@ -1,19 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import type { State } from '../api'
 import * as api from '../api'
 import { StoryPage } from './StoryPage'
+import { setUnsavedDraft } from '../shell/unsaved'
 
 vi.mock('../api', async () => {
   const actual = await vi.importActual<typeof import('../api')>('../api')
-  return { ...actual, getExplorer: vi.fn(), runDownload: vi.fn() }
+  return { ...actual, getExplorer: vi.fn(), runDownload: vi.fn(), getTestCases: vi.fn(), onChange: () => () => {} }
 })
 
 const STATE = {
-  project: 'p', prd: { adopted: '1', staged: null }, flows: [], cards: [], change_reports: [],
+  schema1: false, notice: null, project: 'p', prds: [], flows: [], cards: [], change_reports: [],
   totals: {}, next: { banners: [], rows: [] },
   stories: [{
-    id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'production-monitoring.md',
+    id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'example-module.md',
     acs: 25, open_questions: 0, asserted_by: 'syabz', stale_causes: [],
     tc: { active: 39, stale: 0, retired: 0 },
     components: { total: 15, covered: 13, acs_without_tcs: 0, out_of_scope: 2, gaps: 0 },
@@ -33,8 +34,8 @@ const SNAP = {
         { key: 'derived_from', kind: 'links', refs: ['/sources/prd/4-1-1-1.md'] },
       ],
     },
-    'testcases/sit/production-monitoring/1.1.3.1.1-AC08-01': {
-      ref: 'testcases/sit/production-monitoring/1.1.3.1.1-AC08-01', kind: 'testcases',
+    'testcases/sit/example-module/1.1.3.1.1-AC08-01': {
+      ref: 'testcases/sit/example-module/1.1.3.1.1-AC08-01', kind: 'testcases',
       title: 'Change filter', status: 'active', version: 1, body_md: '# Steps\n\n1. Add Workshop Y.\n',
       facets: { kind: 'testcases', status: 'active', origin_state: 'proposed', story: null,
         asserted_by: null, stale: false, staleness_causes: [] },
@@ -47,6 +48,12 @@ describe('StoryPage', () => {
   beforeEach(() => {
     vi.mocked(api.getExplorer).mockResolvedValue(SNAP as never)
     vi.mocked(api.runDownload).mockResolvedValue()
+    vi.mocked(api.getTestCases).mockResolvedValue({
+      groups: [{ key: 'run:sit:Main flow', label: 'Main flow', kind: 'run', level: 'sit', sections: [] }],
+      rows: [{ id: '1.1.3.1.1-AC08-01', display_id: 'TC-1.1.3.1.1-AC08-01', story: 'US-VHLD', group: 'run:sit:Main flow',
+        level: 'sit', status: 'active', section: null, confidence: 'High', editable: [],
+        cells: { scenario: 'Change filter', steps: '1. Add Workshop Y.', data: '', expected: '1. Widgets refresh.', remarks: '' } }],
+    } as never)
   })
 
   it('renders the title, phase stepper (Generated current) and the sealed readiness verdict', async () => {
@@ -64,10 +71,33 @@ describe('StoryPage', () => {
     ))
   })
 
-  it('switches to the Test Cases tab and shows the parsed TC', async () => {
+  it('switches to the Test Cases tab and shows the review grid for this story', async () => {
     render(<StoryPage id="US-VHLD" state={STATE} result={null} onRun={vi.fn()} />)
     fireEvent.click(await screen.findByRole('button', { name: 'Test Cases' }))
-    expect(await screen.findByText('Add Workshop Y.')).toBeInTheDocument()
+    expect(await screen.findByText('1 of 1 test cases')).toBeInTheDocument()
+    expect(screen.getByText('1. Add Workshop Y.')).toBeInTheDocument()
+  })
+
+  it('asks before leaving the Test Cases tab with unsaved text, and a "no" stays on it', async () => {
+    render(<StoryPage id="US-VHLD" state={STATE} result={null} onRun={vi.fn()} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Test Cases' }))
+    await screen.findByText('TC-1.1.3.1.1-AC08-01')
+    act(() => setUnsavedDraft('test-draft', true))
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Coverage' }))
+      expect(confirm).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('TC-1.1.3.1.1-AC08-01')).toBeInTheDocument()
+      // the tab already shown is not a move
+      fireEvent.click(screen.getByRole('button', { name: 'Test Cases' }))
+      expect(confirm).toHaveBeenCalledTimes(1)
+      confirm.mockReturnValue(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Coverage' }))
+      expect(screen.queryByText('TC-1.1.3.1.1-AC08-01')).toBeNull()
+    } finally {
+      confirm.mockRestore()
+      act(() => setUnsavedDraft('test-draft', false))
+    }
   })
 
   it('shows a loading skeleton in the tab body while the explorer snapshot is pending', async () => {

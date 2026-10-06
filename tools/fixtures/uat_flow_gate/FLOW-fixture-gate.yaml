@@ -1,4 +1,5 @@
 flow: /flows/FLOW-fixture-gate.md
+module: /modules/fixture.md
 out: testcases/uat
 story_num: "0.0"
 scenario_id: "SC-UAT-FIXTURE-{jid}"
@@ -15,3 +16,4 @@ entries:
     steps: |-
       1. Do the fixture step.
     expected: 1. The fixture result is shown.
+    confidence: {scenario: High, steps: High, data: High, expected: High}

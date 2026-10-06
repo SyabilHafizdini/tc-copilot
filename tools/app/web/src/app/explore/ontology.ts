@@ -128,10 +128,30 @@ export function buildOntologyTree(graph: GraphModel, docs: Record<string, DocVie
   }
 
   const sources_grp = (() => {
-    const prd = of('PRD Section').map((n) => leaf(n.id, titleOf(n.id, n.label ?? n.id), 'PRD Section', statusOf(n.id)))
+    const prdLeaf = (n: Raw) => leaf(n.id, titleOf(n.id, n.label ?? n.id), 'PRD Section', statusOf(n.id))
+    // sources/prd/<prd id>/<slug>: one sub-group per PRD. A flat
+    // sources/prd/<slug> (a project not migrated yet) has no PRD id and stays
+    // directly under Sources.
+    const prdOf = (n: Raw): string | null => {
+      if (n.prd) return n.prd
+      const parts = n.id.split('/')
+      return parts.length >= 4 ? parts[2] : null
+    }
+    const byPrd = new Map<string, OntologyNode[]>()
+    const loose: OntologyNode[] = []
+    for (const n of of('PRD Section')) {
+      const prd = prdOf(n)
+      if (prd === null) loose.push(prdLeaf(n))
+      else byPrd.set(prd, [...(byPrd.get(prd) ?? []), prdLeaf(n)])
+    }
+    const prdGroups = [...byPrd.entries()]
+      .sort((a, b) => byNumeric(a[0], b[0]))
+      .map(([prd, items]) =>
+        group(`grp::prd::${prd}`, prd, items.sort((a, b) => byNumeric(a.label, b.label))))
     const figma = of('Figma Page').map((n) => leaf(n.id, titleOf(n.id, n.label ?? n.id), 'Figma Page', statusOf(n.id)))
-    const items = [...prd, ...figma].sort((a, b) => byNumeric(a.label, b.label))
-    return items.length ? group('grp::sources', 'Sources (PRD)', items) : null
+    const rest = [...loose, ...figma].sort((a, b) => byNumeric(a.label, b.label))
+    const children = [...prdGroups, ...rest]
+    return children.length ? group('grp::sources', 'Sources (PRD)', children) : null
   })()
 
   const modulesChildren = [...moduleNodes, ...orphanStories]

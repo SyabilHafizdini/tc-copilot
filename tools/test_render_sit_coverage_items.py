@@ -17,13 +17,17 @@ def _spec(tcs):
             "figma": None, "out": "testcases/sit/m", "ac_prefix": "1.1",
             "scenario_id": "SC-{ac}-{seq:02d}", "generator_version": "1.0.0",
             "pre_common": "1. Logged in.", "post_default": "No change.",
+            "states": {"home": "Portal home.", "s1": "Step 1 done."},
+            "entry_state": "home", "profiles": {"p1": "persona 1"},
             "test_cases": tcs}
 
 
 def _tc(**kw):
     d = {"ac": "AC1", "seq": 1, "technique": "BVA", "priority": "P1",
          "area": "Area", "title": "t", "objective": "o",
-         "steps": "1. Do it.", "expected": "1. It happened."}
+         "steps": "1. Do it.", "expected": "1. It happened.",
+         "section": "Area", "continue_from": "start", "run": "Main",
+         "starts_at": "home", "ends_at": "s1", "profile": "p1", "confidence": {"scenario": "High", "steps": "High", "data": "High", "expected": "High"}}
     d.update(kw)
     return d
 

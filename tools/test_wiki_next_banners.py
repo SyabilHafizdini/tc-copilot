@@ -217,8 +217,365 @@ def test_no_dump_banner_when_only_the_readme_is_present():
     assert not [b for b in banners if "PUT_FILES_HERE" in b["state"]], banners
 
 
+def _doubts_fixture():
+    import test_wiki_doubts as twd
+    return twd
+
+
+def test_doubts_also_open_doubts_exact_entry():
+    twd = _doubts_fixture()
+    d = twd._mkroot()
+    try:
+        s = twd.wiki_doubts.story_summary(twd.STORY, root=d)
+        assert s["open"] > 0, s["open"]
+        got = wiki_next.doubts_also(twd.STORY, root=d)
+        want = [{"state": f"{s['open']} open doubts in {s['questions_open']} questions",
+                 "command": f"py tools/wiki.py doubts list --story {twd.STORY}",
+                 "skill": "tc-resolve"}]
+        assert got == want, got
+    finally:
+        twd._cleanup(d)
+
+
+def test_doubts_also_invalid_register():
+    twd = _doubts_fixture()
+    d = twd._mkroot(register="story: [unclosed")
+    try:
+        got = wiki_next.doubts_also(twd.STORY, root=d)
+        assert got == [{"state": "doubt register invalid - run lint",
+                        "command": "py tools/wiki.py lint",
+                        "skill": "tc-resolve"}], got
+    finally:
+        twd._cleanup(d)
+
+
+def test_doubts_also_no_doubts_is_empty():
+    twd = _doubts_fixture()
+    d = twd._mkroot(register=None)
+    try:
+        assert wiki_next.doubts_also("US-NOT-A-STORY", root=d) == []
+    finally:
+        twd._cleanup(d)
+
+
+def test_doubts_also_never_raises():
+    twd = _doubts_fixture()
+    orig = twd.wiki_doubts.story_summary
+
+    def boom(*a, **k):
+        raise RuntimeError("boom")
+    twd.wiki_doubts.story_summary = boom
+    try:
+        got = wiki_next.doubts_also("US-ANY")
+        assert got and got[0]["state"] == "doubt register invalid - run lint", got
+    finally:
+        twd.wiki_doubts.story_summary = orig
+
+
+def test_collect_next_rows_carry_also_and_keep_story_next():
+    out = wiki_next.collect_next([])
+    if not out["rows"]:
+        raise SkipTest("no stories or flows in this repo")
+    for r in out["rows"]:
+        assert isinstance(r["also"], list), r
+        if r["scope"] == "flow":
+            assert r["also"] == [], r
+    concepts = {rel: (fm, body, p) for rel, fm, body, p in wiki_next.all_concepts()}
+    manifest = wiki_next.load_manifest()
+    checked = 0
+    for rel, (fm, body, _p) in concepts.items():
+        if fm and fm.get("type") == "User Story":
+            row = [r for r in out["rows"] if r["id"] == fm["id"]][0]
+            assert (row["state"], row["command"], row["skill"]) ==                 wiki_next.story_next(fm["id"], fm, body, manifest, rel, concepts=concepts), row
+            checked += 1
+    if not checked:
+        raise SkipTest("no stories in this repo")
+
+
+def test_cmd_next_prints_an_also_line():
+    import io
+    import contextlib
+    rows = wiki_next.collect_next([])["rows"]
+    if not any(r["also"] for r in rows):
+        raise SkipTest("no story with doubts")
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        wiki_next.cmd_next([])
+    lines = [ln for ln in buf.getvalue().splitlines() if ln.startswith("    also:  ")]
+    assert lines, buf.getvalue()
+    assert " -> py tools/wiki.py " in lines[0] and "(tc-resolve)" in lines[0], lines[0]
+    lines[0].encode("ascii")
+
+
+def _doubts_card(name, **kw):
+    return _card(name, card_type="doubts", story="US-ZZ-FAKE-DOUBTS",
+                 open_questions=[], **kw)
+
+
+def _banner_for(name):
+    banners = wiki_next.collect_next([])["banners"]
+    return [b for b in banners if name in b["state"]]
+
+
+def test_pending_doubts_card_gets_the_doubts_banner():
+    p = _doubts_card("_t_zz_fake_doubts_pending.json")
+    try:
+        hits = _banner_for("_t_zz_fake_doubts_pending.json")
+        assert hits, "no banner"
+        assert "doubts answer" in hits[0]["command"], hits[0]
+        assert "card revise build/cards/_t_zz_fake_doubts_pending.json" \
+            in hits[0]["command"], hits[0]
+        assert hits[0]["skill"].startswith("tc-resolve"), hits[0]
+    finally:
+        p.unlink()
+
+
+def test_pending_non_doubts_card_keeps_the_old_banner():
+    p = _card("_t_zz_fake_align_pending.json")
+    try:
+        hits = _banner_for("_t_zz_fake_align_pending.json")
+        assert hits and hits[0]["command"].startswith(
+            "py tools/wiki.py assert story <id> --by <user> --card "
+            "build/cards/_t_zz_fake_align_pending.json"), hits
+        assert hits[0]["skill"].startswith("tc-align"), hits[0]
+    finally:
+        p.unlink()
+
+
+def test_answered_unapplied_doubts_card_gets_a_banner():
+    hr = {"answer": "revise", "by": "zz-fake-human",
+          "answers": {"Q-ZZ-01": {"decision": "accept", "value": None}}}
+    name = "_t_zz_fake_doubts_answered.json"
+    p = _doubts_card(name, human_response=hr)
+    try:
+        assert name not in [c["file"] for c in wiki_next.pending_cards()]
+        hits = _banner_for(name)
+        assert hits, "no banner"
+        assert hits[0]["state"] == (f"doubts card {name} is answered but not "
+                                    f"applied"), hits[0]
+        assert hits[0]["command"] == (
+            f"py tools/wiki.py doubts answer --card build/cards/{name} "
+            f"--by zz-fake-human   # refused as changed? py tools/wiki.py "
+            f"card discard build/cards/{name} --by zz-fake-human, then emit "
+            f"a new card: py tools/wiki.py doubts card --story "
+            f"US-ZZ-FAKE-DOUBTS"), hits[0]
+        assert hits[0]["skill"] == "tc-resolve"
+        # once applied, no banner
+        c = json.loads(p.read_text(encoding="utf-8"))
+        c["applied"] = {"by": "zz-fake-human"}
+        p.write_text(json.dumps(c), encoding="utf-8")
+        assert _banner_for(name) == []
+    finally:
+        p.unlink()
+
+
+def test_discarded_doubts_card_gets_no_banner():
+    name = "_t_zz_fake_doubts_discarded.json"
+    p = _doubts_card(name, human_response={"answer": "discard",
+                                           "by": "zz-fake-human"})
+    try:
+        assert _banner_for(name) == []
+    finally:
+        p.unlink()
+
+
+class _Patched:
+    """Replace wiki_doubts.unrendered_lifts for a with-block."""
+    def __init__(self, fn):
+        self.fn = fn
+
+    def __enter__(self):
+        import wiki_doubts
+        self.mod, self.old = wiki_doubts, wiki_doubts.unrendered_lifts
+        wiki_doubts.unrendered_lifts = self.fn
+
+    def __exit__(self, *a):
+        self.mod.unrendered_lifts = self.old
+
+
+# A neutral in-memory story for a bundle that holds none (the content-free
+# base). The tests that take a story row override its status, coverage and
+# test-case counts themselves, so which story it is does not matter.
+_FIXTURE_STORY = ("stories/US-ZZ-FIXTURE",
+                  {"type": "User Story", "id": "US-ZZ-FIXTURE",
+                   "title": "Fixture story", "status": "aligned",
+                   "acceptance_criteria": [{"id": "AC1", "text": "Fixture."}],
+                   "test_model": {"status": "confirmed"}},
+                  "# Story\n\nFixture.\n")
+
+
+def _story_row():
+    for rel, fm, body, _p in wiki_next.all_concepts():
+        if fm and fm.get("type") == "User Story":
+            return rel, fm, body
+    return _FIXTURE_STORY
+
+
+def _entry(story, kind="sit", flow=None):
+    return {"story": story, "kind": kind, "flow": flow,
+            "scenario_id": "SC-ZZ", "part": "data", "doubt": "SC-ZZ#data",
+            "tc": "testcases/x", "expected": "/resolutions/R-1.md",
+            "rendered": None}
+
+
+def test_story_next_reports_unrendered_lifts():
+    rel, fm, body = _story_row()
+    manifest = wiki_next.load_manifest()
+    fm = dict(fm, status="aligned")
+    sid = fm["id"]
+    # force the state that reaches the lift row: aligned, confirmed, one TC
+    orig_cov, orig_stats = wiki_next.load_coverage, wiki_next.story_tc_stats
+    wiki_next.load_coverage = lambda _fm: ({}, {}, "confirmed")
+    wiki_next.story_tc_stats = lambda m, r: {"active": 3, "stale": 0,
+                                             "retired": 0}
+    fm["test_model"] = {"status": "confirmed"}
+    try:
+        base = wiki_next.story_next(sid, fm, "", manifest, rel)
+        assert "not rendered" not in base[0], base
+        with _Patched(lambda root=None: [_entry(sid), _entry(sid)]):
+            state, cmd, skill = wiki_next.story_next(sid, fm, "", manifest, rel)
+        assert state == "2 confirmed doubt(s) not rendered", state
+        assert cmd == (f"py tools/render_sit.py --story {sid}"
+                       f"   # then: py tools/wiki.py seal"), cmd
+        assert skill == "tc-resolve (render and seal the lifts)", skill
+        with _Patched(lambda root=None: [_entry("US-OTHER")]):
+            assert wiki_next.story_next(sid, fm, "", manifest, rel) == base
+        with _Patched(lambda root=None: []):
+            assert wiki_next.story_next(sid, fm, "", manifest, rel) == base
+    finally:
+        wiki_next.load_coverage, wiki_next.story_tc_stats = orig_cov, orig_stats
+
+
+def test_flow_next_reports_unrendered_uat_lifts():
+    fm = {"id": "FLOW-ZZ-FAKE", "status": "aligned",
+          "journey": [{"id": "J01"}], "stories": []}
+    manifest = {"concepts": {"testcases/uat/zz.md": {"status": "active"}}}
+    base = wiki_next.flow_next("FLOW-ZZ-FAKE", fm, "", {}, manifest)
+    assert "not rendered" not in base[0], base
+    with _Patched(lambda root=None: [_entry("S", "uat", "FLOW-ZZ-FAKE")]):
+        state, cmd, skill = wiki_next.flow_next("FLOW-ZZ-FAKE", fm, "", {},
+                                                manifest)
+    assert state == "1 confirmed doubt(s) not rendered", state
+    assert cmd == ("py tools/render_uat.py --flow FLOW-ZZ-FAKE"
+                   "   # then: py tools/wiki.py seal"), cmd
+    assert skill == "tc-resolve (render and seal the lifts)"
+    with _Patched(lambda root=None: [_entry("S", "uat", "FLOW-OTHER"),
+                                     _entry("S", "sit")]):
+        assert wiki_next.flow_next("FLOW-ZZ-FAKE", fm, "", {}, manifest) == base
+
+
+def test_a_raising_unrendered_lifts_does_not_crash_next():
+    calls = []
+
+    def boom(root=None):
+        calls.append(1)
+        raise RuntimeError("doubts broke")
+    rel, fm, body = _story_row()
+    sid = fm["id"]
+    with _Patched(boom):
+        out = _with_active_story(
+            lambda: wiki_next.story_next(sid, dict(fm, status="aligned",
+                                                   test_model={"status": "confirmed"}),
+                                         "", wiki_next.load_manifest(), rel))
+        assert calls, "the lift check was never reached"
+        assert "not rendered" not in out[0], out
+        assert wiki_next.collect_next([])["rows"] is not None
+
+
+def _with_active_story(fn):
+    orig_cov, orig_stats = wiki_next.load_coverage, wiki_next.story_tc_stats
+    wiki_next.load_coverage = lambda _fm: ({}, {}, "confirmed")
+    wiki_next.story_tc_stats = lambda m, r: {"active": 3, "stale": 0,
+                                             "retired": 0}
+    try:
+        return fn()
+    finally:
+        wiki_next.load_coverage, wiki_next.story_tc_stats = orig_cov, orig_stats
+
+
+def test_collect_next_computes_unrendered_lifts_once():
+    calls = []
+
+    def count(root=None):
+        calls.append(1)
+        return []
+    orig_stats = wiki_next.story_tc_stats
+    orig_all, orig_cov = wiki_next.all_concepts, wiki_next.load_coverage
+    wiki_next.story_tc_stats = lambda m, r: {"active": 3, "stale": 0,
+                                             "retired": 0}
+    real = list(orig_all())
+    if not any(fm and fm.get("type") == "User Story" for _r, fm, _b, _p in real):
+        # A content-free bundle: give collect_next the fixture story, at the
+        # state that reaches the lift check (coverage and model confirmed).
+        rel, fm, body = _FIXTURE_STORY
+        wiki_next.all_concepts = lambda: real + [(rel, fm, body, None)]
+        wiki_next.load_coverage = lambda _fm: ({}, {}, "confirmed")
+    try:
+        with _Patched(count):
+            wiki_next.collect_next([])
+            n_rows = len(wiki_next.collect_next([])["rows"])
+    finally:
+        wiki_next.story_tc_stats = orig_stats
+        wiki_next.all_concepts, wiki_next.load_coverage = orig_all, orig_cov
+    assert n_rows >= 1
+    assert len(calls) == 2, calls   # once per collect_next, however many rows
+
+
+def test_answered_banner_without_by_falls_back_to_user():
+    name = "_t_zz_fake_doubts_noby.json"
+    p = _doubts_card(name, human_response={
+        "answer": "revise",
+        "answers": {"Q-ZZ-01": {"decision": "accept", "value": None}}})
+    try:
+        hits = _banner_for(name)
+        assert hits and "--by <user>   #" in hits[0]["command"], hits
+        assert hits[0]["command"].count("--by <user>") == 2, hits
+    finally:
+        p.unlink()
+
+
+def test_discarding_an_answered_doubts_card_clears_its_banner():
+    """F4: a stale answered doubts card has a legal exit (card discard), and
+    once discarded it no longer raises the answered-but-not-applied banner."""
+    import contextlib
+    import io
+    import wiki
+    hr = {"answer": "revise", "by": "zz-fake-human",
+          "answers": {"Q-ZZ-01": {"decision": "accept", "value": None}}}
+    name = "_t_zz_fake_doubts_stale.json"
+    p = _doubts_card(name, human_response=hr)
+    try:
+        assert _banner_for(name)
+        with contextlib.redirect_stdout(io.StringIO()):
+            wiki.cmd_card(["discard", str(p), "--by", "zz-fake-human"])
+        c = json.loads(p.read_text(encoding="utf-8"))
+        assert c["human_response"]["answer"] == "discard", c
+        assert c["superseded_response"] == hr, c
+        assert _banner_for(name) == []
+        assert name not in [x["file"] for x in wiki_next.pending_cards()]
+    finally:
+        p.unlink()
+
+
+def test_card_listings_survive_a_card_that_is_not_utf8():
+    """F6: a card that is not valid UTF-8 is skipped, never raised."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as t:
+        d = Path(t) / "build" / "cards"
+        d.mkdir(parents=True)
+        (d / "doubts-X-001.json").write_bytes(b'{"card_type": "doubts\xff"}')
+        (d / "doubts-X-002.json").write_text(json.dumps({
+            "card_type": "doubts", "story": "X", "human_response": {
+                "answer": "revise", "by": "h", "answers": {"Q": {}}}}),
+            encoding="utf-8")
+        got = wiki_next.answered_doubts_cards(root=t)
+        assert [c["file"] for c in got] == ["doubts-X-002.json"], got
+        assert wiki_next.pending_cards(root=t) == []
+
+
 if __name__ == "__main__":
     skipped = []
+    fails = 0
     for name, fn in sorted(globals().items()):
         if name.startswith("test_") and callable(fn):
             try:
@@ -226,7 +583,11 @@ if __name__ == "__main__":
             except SkipTest as e:
                 print(f"[SKIP] {name} ({e})")
                 skipped.append(name)
+            except Exception as e:
+                fails += 1
+                print(f"[FAIL] {name}: {e}")
             else:
                 print(f"[PASS] {name}")
-    print("test_wiki_next_banners OK" +
+    print("test_wiki_next_banners " + ("FAILED" if fails else "OK") +
           (f" ({len(skipped)} skipped)" if skipped else ""))
+    sys.exit(1 if fails else 0)

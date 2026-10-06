@@ -160,7 +160,10 @@ One subagent. It PROPOSES; you are the sole writer. Prompt:
 > entry, or `{"op":"add","test_case":{...full entry...},"closes":"G1.2"}` to
 > add a test case for an uncovered coverage item. Every new or changed
 > `expected` must be traceable to the AC / rule text; every `data` value
-> concrete (`**Field** = value`); wording per tc-style. Write
+> concrete (`**Field** = value`); wording per tc-style. An added test case
+> also needs `section`, `continue_from` and a per-part `confidence` with
+> `remarks` (tc-style R6, R7),
+> placed where it runs in its section. Write
 > `build/rubric/<id>-r<N>-patch.json` as `{"scope":"<id>","round":N,
 > "patches":[...]}` and return the path. Do not edit any other file.
 

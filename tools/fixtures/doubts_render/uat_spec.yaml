@@ -1,0 +1,29 @@
+flow: /flows/FLOW-LIFT-FIX.md
+module: /modules/lift-fixture.md
+out: testcases/uat
+story_num: '9.9'
+scenario_id: "SC-UAT-LIFT-{jid}"
+generator_version: 1.0.0
+profiles:
+  p1: "Profile one."
+entries:
+  J01:
+    area: Area
+    profile: p1
+    priority: P1
+    title: Lift journey one
+    objective: Lift journey objective one.
+    steps: "1. Log in with profile A."
+    expected: "1. Home shown."
+    confidence: {scenario: High, steps: Medium, data: Medium, expected: High}
+    remarks: {steps: "Assumed.", data: "Profile guessed."}
+  J02:
+    area: Area
+    profile: p1
+    priority: P2
+    title: Lift journey two
+    objective: Lift journey objective two.
+    steps: "1. Do it."
+    expected: "1. Done."
+    confidence: {scenario: High, steps: High, data: High, expected: Low}
+    remarks: {expected: "Outcome guessed."}

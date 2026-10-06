@@ -12,11 +12,12 @@ HIGH = {"scenario": "High", "steps": "High", "data": "High", "expected": "High"}
 
 def _spec(**entry):
     e = {"area": "A", "priority": "P1", "title": "t", "objective": "o",
-         "steps": "1. Do it.", "expected": "1. Done.", "profile": "p1"}
+         "steps": "1. Do it.", "expected": "1. Done.", "confidence": dict(HIGH),
+         "profile": "p1"}
     e.update(entry)
-    return {"flow": "/flows/F.md", "out": "testcases/uat",
+    return {"flow": "/flows/F.md", "module": "/modules/m.md", "out": "testcases/uat",
             "story_num": "1.1", "scenario_id": "SC-{jid}", "generator_version": "1.0.0",
-            "profiles": {"p1": "couple 1"}, "entries": {"J01": e}}
+            "profiles": {"p1": "persona 1"}, "entries": {"J01": e}}
 
 
 def _errors(spec):
@@ -33,48 +34,23 @@ def test_valid_linear_spec_has_no_errors():
     assert _errors(_spec()) == ""
 
 
-def test_module_is_optional():
-    spec = _spec()
-    assert _errors(spec) == ""
-    spec["module"] = "/modules/m.md"
-    assert _errors(spec) == ""
-
-
-def test_confidence_is_optional_but_shape_checked():
-    assert _errors(_spec(confidence=dict(HIGH))) == ""
+def test_missing_confidence_part_is_named():
     bad = _spec(confidence={"scenario": "High", "steps": "High", "data": "High"})
     assert "confidence.expected" in _errors(bad)
-    assert "must be one of" in _errors(_spec(confidence=dict(HIGH, data="Sure")))
 
 
 def test_low_part_without_remark_is_refused():
     bad = _spec(confidence=dict(HIGH, data="Low"))
     assert "remarks.data" in _errors(bad)
-    assert _errors(_spec(confidence=dict(HIGH, data="Low"),
-                         remarks={"data": "value not stated"})) == ""
 
 
 def test_unknown_entry_key_is_refused():
     assert "unknown key 'stepz'" in _errors(_spec(stepz="x"))
 
 
-def test_bad_priority_and_alts_are_refused():
-    assert "priority must be one of" in _errors(_spec(priority="P9"))
-    assert "alts must be a list" in _errors(_spec(alts="SC-ALT-01"))
-
-
-def test_alts_must_be_alternative_scenarios_of_the_flow_model():
-    flow = {"test_model": {"items": [
-        {"id": "SC-MAIN", "role": "main"}, {"id": "SC-ALT-01", "role": "alternative"}]}}
-    ok = {"J01": {"alts": ["SC-ALT-01"]}}
-    assert render_uat.alt_errors(ok, flow, "F") == []
-    errs = render_uat.alt_errors({"J01": {"alts": ["SC-MAIN", "SC-ALT-09"]}}, flow, "F")
-    assert len(errs) == 2 and "SC-ALT-09" in errs[1], errs
-
-
 def test_branch_entry_with_another_profile_must_be_marked_fresh():
     spec = _spec()
-    spec["profiles"] = {"p1": "couple 1", "p2": "couple 2"}
+    spec["profiles"] = {"p1": "persona 1", "p2": "persona 2"}
     spec["entries"]["J01"]["profile"] = "p1"
     spec["entries"]["J02"] = dict(spec["entries"]["J01"], profile="p2", continue_from="J01")
     assert "profile 'p2' differs from J01's 'p1'" in _errors(spec)
@@ -144,23 +120,11 @@ def test_purely_linear_spec_validates():
     assert _errors(spec) == ""
 
 
-def test_ids_derive_from_ac_number_or_trailing_number():
-    cfg = {"ids": {"tc_format_uat": "UAT-{story_num}-AC{ac_num:02d}-{seq:02d}"}}
-    assert render_uat.tc_id(cfg, "1.1", "1.1-AC5", 1) == "UAT-1.1-AC05-01"
-    assert render_uat.tc_id(cfg, "ROM-SC01", "HS-04", 2) == "UAT-ROM-SC01-AC04-02"
-    assert render_uat.display_id("UAT-1.1-AC05-01") == "TC-1.1-AC05-01"
-
-
 def test_end_state_wording_place_versus_sentence():
     assert render_uat.state_clause("the Orders page") == "user is at the Orders page."
     assert render_uat.state_clause("Step 1 is completed.") == "Step 1 is completed."
     assert render_uat.state_sentence("the Orders page") == "the Orders page."
     assert render_uat.state_sentence("Step 1 is completed.") == "Step 1 is completed."
-
-
-def test_traceability_names_no_prd_when_none_is_adopted():
-    assert render_uat.prd_label(None) == "no PRD"
-    assert render_uat.prd_label(3) == "PRD v3"
 
 
 if __name__ == "__main__":

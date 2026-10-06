@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Kanban, FileText, FileInput, ClipboardCheck, ShieldCheck,
-  PackageOpen, GitCompare, Activity, Network, Settings, Inbox, FolderOpen, Workflow,
+  PackageOpen, FileSpreadsheet, GitCompare, Activity, Network, Settings, Inbox, FolderOpen, Workflow,
 } from 'lucide-react'
 import type { View } from './routes'
 
@@ -27,6 +27,7 @@ const GROUPS: { label: string; items: { label: string; view: View; icon: React.R
     { label: 'Test Cases', view: { kind: 'testcases' }, icon: <ClipboardCheck size={17} /> },
     { label: 'Coverage', view: { kind: 'coverage' }, icon: <ShieldCheck size={17} /> },
     { label: 'Suites & Export', view: { kind: 'suites' }, icon: <PackageOpen size={17} /> },
+    { label: 'Workbook', view: { kind: 'workbook', wbKind: '', file: '' }, icon: <FileSpreadsheet size={17} /> },
   ] },
   { label: 'Maintain', items: [
     { label: 'Changes & Impact', view: { kind: 'changes' }, icon: <GitCompare size={17} /> },

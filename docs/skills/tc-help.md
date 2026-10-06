@@ -17,7 +17,7 @@ never writes anything.
 2. Reports, in this order:
    - **Where you are**: the project phase (`n/3`) and story and test-case
      counts.
-   - **Blockers first**: every banner. A staged PRD awaiting approval, a card
+   - **Blockers first**: every banner. A staged PRD awaiting approval (the banner names which PRD), a card
      awaiting an answer, hand-edit drift, files still in `PUT_FILES_HERE/`.
      Banners block everything after them.
    - **The one next thing**: the first row's state, its literal command, and
@@ -41,12 +41,15 @@ skill does not say it.
 | "retire this TC", "someone hand-edited a TC" | `tc-lifecycle` |
 | "new PRD version", "what changed" | `tc-change-report` |
 | "that rule is wrong" (no new PRD) | `tc-correct` |
+| "resolve doubts", "why is this Low" | `tc-resolve` |
 | "run the platform", "is it healthy" | `run-tc-copilot` |
-| "re-word this test case" | `tc-style` |
+| "re-word this test case" | `tc-style` (the agent rewrites the spec and re-renders), or edit it yourself in the app's Test Cases page |
 
 If the state contradicts the request, for example SIT test cases on a story
 still in `draft`, it says so and names the blocking step. It never routes
-around a gate.
+around a gate. If `next` itself refuses because the project is still schema 1,
+it reports the refusal and stops: `migrate-prds` runs only at your
+instruction, with the PRD id and title you choose.
 
 ## What the states mean
 

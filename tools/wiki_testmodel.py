@@ -56,7 +56,11 @@ def _short(text, n=110):
 
 
 def _ac_num(ac_id):
-    m = re.search(r"AC(\d+)$", str(ac_id))
+    """Ordinal of an AC id: the digits after a trailing 'AC' (PRD ids such as
+    1.1.3.1.1-AC5), else any trailing digits (HS-01 on a human-stated story,
+    4-1-1-3-AC01 on a prd-interpreted one). Falling back to 0 for every
+    non-AC id made every scaffold item 'SC-00' and the scaffold refuse."""
+    m = re.search(r"AC(\d+)$", str(ac_id)) or re.search(r"(\d+)$", str(ac_id))
     return int(m.group(1)) if m else 0
 
 

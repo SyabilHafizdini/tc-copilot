@@ -5,7 +5,7 @@ import type { State } from '../api'
 
 function st(over: Partial<State>): State {
   return {
-    project: 'DEMO', prd: { adopted: '1', staged: null },
+    schema1: false, notice: null, project: 'DEMO', prds: [],
     stories: [], flows: [], cards: [], change_reports: [],
     totals: { tcs: 0 }, next: { banners: [], rows: [] }, inventory: [], suites: [], ...over,
   }
@@ -42,5 +42,21 @@ describe('Dashboard', () => {
     // Clicking Stale again clears the filter.
     fireEvent.click(screen.getByRole('button', { name: /Stale/i }))
     expect(screen.getByText('US-A')).toBeInTheDocument()
+  })
+
+  it('lists the PRDs above the board', () => {
+    render(<Dashboard state={st({ prds: [{ id: 'rental-payment', title: 'Rental payment', adopted: 1, staged: 2 }] })} />)
+    expect(screen.getByRole('row', { name: /rental-payment/ })).toBeInTheDocument()
+  })
+
+  it('says no PRD is registered on a migrated project with none', () => {
+    render(<Dashboard state={st({})} />)
+    expect(screen.getByText('No PRD registered.')).toBeInTheDocument()
+  })
+
+  it('does not say "No PRD registered." on a project that is not migrated yet', () => {
+    render(<Dashboard state={st({ schema1: true, notice: 'manifest.json is schema 1' })} />)
+    expect(screen.getByText('PRD state is not shown until the project is migrated.')).toBeInTheDocument()
+    expect(screen.queryByText('No PRD registered.')).toBeNull()
   })
 })

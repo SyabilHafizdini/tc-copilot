@@ -13,7 +13,8 @@ import json
 import re
 from pathlib import Path
 
-from wiki import ROOT, body_section, load_all, load_config, resolve_ref, sha256
+from wiki import (ROOT, body_section, load_all, load_config, prd_rows,
+                  read_concept, resolve_ref, sha256)
 from wiki_coverage import components_covering, load_coverage
 from wiki_graph import build_model, collect
 
@@ -102,11 +103,14 @@ def gather():
                 pass
 
     crs = []
-    for p in sorted((ROOT / "changereports").glob("CR-*.md")) if \
-            (ROOT / "changereports").exists() else []:
-        cfm, _b = __import__("wiki").read_concept(p)
+    # Flat (schema 1) and per-PRD (changereports/<id>/) reports both count.
+    cr_base = ROOT / "changereports"
+    for p in sorted(cr_base.rglob("CR-*.md"),
+                    key=lambda q: q.name) if cr_base.exists() else []:
+        cfm, _b = read_concept(p)
         if cfm:
             crs.append({"id": cfm["id"], "status": cfm.get("status"),
+                        "prd": cfm.get("prd"),
                         "from": cfm.get("from_version"),
                         "to": cfm.get("to_version")})
 
@@ -117,8 +121,7 @@ def gather():
 
     dashboard = {
         "project": load_config()["project"]["name"],
-        "prd": {"adopted": manifest.get("adopted_prd_version"),
-                "staged": manifest.get("staged_prd_version")},
+        "prds": prd_rows(manifest),
         "stories": story_rows, "terms": term_rows, "figma": figma_rows,
         "gaps": gaps, "cards": cards, "change_reports": crs, "suites": suites,
         "flows": [{"id": fm["id"], "status": fm.get("status")}
@@ -184,8 +187,11 @@ const COLORS = __COLORS__;
 const dot = s => `<span class="badge"><span class="dot" style="background:${
   COLORS[s] || '#8a8984'}"></span>${s}</span>`;
 document.getElementById('summary').innerHTML =
-  `<p>PRD adopted <b>v${DASH.prd.adopted}</b>` +
-  (DASH.prd.staged ? ` — <b>v${DASH.prd.staged} staged, not adopted</b>` : '') +
+  `<p>` + (DASH.prds.length
+    ? DASH.prds.map(p => `PRD <b>${p.id}</b> ` +
+        (p.adopted == null ? 'no adopted version' : `v${p.adopted}`) +
+        (p.staged ? ` (<b>v${p.staged} staged, not adopted</b>)` : '')).join(' · ')
+    : 'no PRD') +
   ` · ${DASH.totals.prd_sections} sections · ${DASH.totals.stories} stories · ` +
   `${DASH.totals.tcs} test cases · suites: ${DASH.suites.join(', ') || '—'}</p>`;
 const compCell = c => {
@@ -215,7 +221,7 @@ document.getElementById('terms').innerHTML = '<table><tr><th>term</th>' +
     .join('') + '</table>';
 document.getElementById('admin').innerHTML =
   '<p>Change reports: ' + (DASH.change_reports.map(c =>
-    `${c.id} (v${c.from}→v${c.to}, ${c.status})`).join(', ') || 'none') + '</p>' +
+    `${c.id} (${c.prd || 'PRD'} v${c.from}→v${c.to}, ${c.status})`).join(', ') || 'none') + '</p>' +
   '<p>Cards: ' + (DASH.cards.map(c => `${c.session} (${c.type})`).join(', ')
     || 'none') + '</p>' +
   '<p>Flows: ' + (DASH.flows.map(f => `${f.id} (${f.status})`).join(', ')

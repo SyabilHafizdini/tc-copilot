@@ -4,7 +4,7 @@ import { storyFromState, readiness, allowedTransitions, storyPhase, type Story }
 
 // A fully generated, export-ready story.
 const READY: Story = {
-  id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'production-monitoring.md',
+  id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'example-module.md',
   acs: 25, open_questions: 0, asserted_by: 'syabz',
   tc: { active: 39, stale: 0, retired: 0 },
   stale_causes: [],
@@ -71,10 +71,10 @@ describe('readiness', () => {
 
 describe('storyFromState', () => {
   const state = {
-    project: 'p', prd: { adopted: '1', staged: null }, flows: [], cards: [], change_reports: [],
+    schema1: false, notice: null, project: 'p', prds: [], flows: [], cards: [], change_reports: [],
     totals: {}, next: { banners: [], rows: [] },
     stories: [{
-      id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'production-monitoring.md',
+      id: 'US-VHLD', title: 'Vehicle Holding', status: 'aligned', module: 'example-module.md',
       acs: 25, open_questions: 0, asserted_by: 'syabz', stale_causes: [],
       tc: { active: 39, stale: 0, retired: 0 },
       components: { total: 15, covered: 13, acs_without_tcs: 0, out_of_scope: 2, gaps: 0 },
