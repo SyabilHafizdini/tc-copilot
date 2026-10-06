@@ -13,6 +13,9 @@ second entry already continues, must carry `fresh_run: true`: the run is
 replayed to that point and the precondition is worded
 `Continue from TC-<id> (fresh run replayed to this point)`. That one value
 also sets the frontmatter `fresh_run`.
+A journey `end_state` written as a place ("the Orders page") is worded
+`user is at the Orders page.`; one written as a sentence (ending in a full
+stop) is carried verbatim.
 Re-running on an unchanged wiki prints `rendered 0`.
 
 `module` is optional. A test case with a module lands on that module's
@@ -100,6 +103,23 @@ def tc_id(cfg, story_num, ac_id, seq):
 
 def display_id(wiki_id):
     return "TC-" + wiki_id.removeprefix("UAT-")
+
+
+def state_clause(end_state):
+    """The chained-precondition wording of a journey end_state: a sentence
+    (ends in a full stop) verbatim, a place as `user is at <place>.`."""
+    s = str(end_state or "").strip()
+    return s if s.endswith(".") else f"user is at {s}."
+
+
+def state_sentence(end_state):
+    """The Postconditions wording: the end_state with exactly one full stop."""
+    s = str(end_state or "").strip()
+    return s if s.endswith(".") else f"{s}."
+
+
+def prd_label(version):
+    return f"PRD v{version}" if version is not None else "no PRD"
 
 
 def with_element_block(story_fm, expected, ac_id):
@@ -343,8 +363,8 @@ def render(flow_id, force=False):
         else:
             how = (" (fresh run replayed to this point)"
                    if w.get("fresh_run") else "")
-            pre = (f"1. Continue from {display_id(ids_by_jid[cont])}{how}: user "
-                   f"is at {by_jid[cont]['end_state']}.")
+            pre = (f"1. Continue from {display_id(ids_by_jid[cont])}{how}: "
+                   f"{state_clause(by_jid[cont]['end_state'])}")
         if e.get("branch") and e.get("note"):
             # Only a branch entry departs from the chain's scenario; a note on
             # a main-walk entry is a data remark, not a starting-state change.
@@ -373,14 +393,14 @@ def render(flow_id, force=False):
         })
         trace = ("- Covers: " + ", ".join(covers)
                  + f"\n- Scenario: {sc} · Technique: UC · journey {jid} of {flow_id}"
-                 f" · PRD v{generated_from['prd_version']} · wiki {wiki_commit}")
+                 f" · {prd_label(generated_from['prd_version'])} · wiki {wiki_commit}")
         body = (f"# Objective\n\n{w['objective']}\n\n"
                 f"# Preconditions\n\n{pre}\n\n"
                 f"# Test Data\n\n{TEST_DATA}\n\n"
                 f"# Steps\n\n{w['steps']}\n\n"
                 f"# Expected Results\n\n"
                 f"{with_element_block(story_fm, w['expected'], ac_id)}\n\n"
-                f"# Postconditions\n\n{e['end_state']}\n\n"
+                f"# Postconditions\n\n{state_sentence(e['end_state'])}\n\n"
                 f"# Traceability\n\n{trace}\n")
         path = out_dir / f"{wid}.md"
         if path.exists():

@@ -151,6 +151,18 @@ def test_ids_derive_from_ac_number_or_trailing_number():
     assert render_uat.display_id("UAT-1.1-AC05-01") == "TC-1.1-AC05-01"
 
 
+def test_end_state_wording_place_versus_sentence():
+    assert render_uat.state_clause("the Orders page") == "user is at the Orders page."
+    assert render_uat.state_clause("Step 1 is completed.") == "Step 1 is completed."
+    assert render_uat.state_sentence("the Orders page") == "the Orders page."
+    assert render_uat.state_sentence("Step 1 is completed.") == "Step 1 is completed."
+
+
+def test_traceability_names_no_prd_when_none_is_adopted():
+    assert render_uat.prd_label(None) == "no PRD"
+    assert render_uat.prd_label(3) == "PRD v3"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):
