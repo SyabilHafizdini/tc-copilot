@@ -27,7 +27,11 @@ def tc_sort_key(fm):
     for ref in fm.get("covers") or []:
         rel, frag = resolve_ref(ref)
         if rel.startswith("flows/") and frag and re.match(r"^J\d+$", frag):
-            return ("", (), 0, int(frag[1:]), fm["id"])
+            # The journey's walk order when the renderer recorded it (`order`),
+            # so an entry inserted mid-journey sits where it runs; the journey
+            # number for test cases rendered before `order` existed.
+            pos = fm["order"] if isinstance(fm.get("order"), int) else int(frag[1:])
+            return ("", (), 0, pos, fm["id"])
     m = re.match(r"^(?:UAT-)?(\d[\d.]*)-AC(\d+)-(\d+)$", fm["id"])
     if not m:
         return (fm.get("module") or "", (), 999, 999, fm["id"])

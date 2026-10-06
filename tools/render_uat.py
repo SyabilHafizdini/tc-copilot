@@ -94,6 +94,34 @@ def tc_id(cfg, story_num, ac_id, seq):
                                               ac_num=int(m.group(1)), seq=seq)
 
 
+def allocate_ids(journey, scenario_of, bindings, make_id):
+    """{journey id: test case id}. An entry whose scenario is already bound
+    keeps the bound id (bindings are permanent). An unbound entry takes the
+    next sequence number for its AC that no bound entry of this journey owns,
+    so an entry added to an asserted journey - wherever it is inserted - never
+    collides with a sealed test case."""
+    bound = {}
+    for e in journey:
+        b = bindings.get(scenario_of(e["id"]))
+        if b:
+            bound[e["id"]] = Path(b["tc"]).name
+    taken = set(bound.values())
+    ids, seq_by_ac = {}, {}
+    for e in journey:
+        if e["id"] in bound:
+            ids[e["id"]] = bound[e["id"]]
+            continue
+        ac = resolve_ref(e["ref"])[1]
+        while True:
+            seq_by_ac[ac] = seq_by_ac.get(ac, 0) + 1
+            cand = make_id(ac, seq_by_ac[ac])
+            if cand not in taken:
+                break
+        taken.add(cand)
+        ids[e["id"]] = cand
+    return ids
+
+
 def display_id(wiki_id):
     return "TC-" + wiki_id.removeprefix("UAT-")
 
@@ -254,12 +282,10 @@ def render(flow_id, force=False):
         _fail(f"render UAT REFUSED: the spec entries of {flow_id} are not in "
               f"journey order - the validator reads the previous entry as the "
               f"predecessor, so list them in the journey's order.")
-    ids_by_jid = {}
-    seq_by_ac = {}
-    for e in journey:
-        ac = resolve_ref(e["ref"])[1]
-        seq_by_ac[ac] = seq_by_ac.get(ac, 0) + 1
-        ids_by_jid[e["id"]] = tc_id(cfg, spec["story_num"], ac, seq_by_ac[ac])
+    ids_by_jid = allocate_ids(
+        journey, lambda jid: spec["scenario_id"].format(jid=jid),
+        manifest.get("bindings", {}),
+        lambda ac, seq: tc_id(cfg, spec["story_num"], ac, seq))
 
     def binding_of(sc):
         return manifest.get("bindings", {}).get(sc)
