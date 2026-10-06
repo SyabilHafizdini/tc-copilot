@@ -76,7 +76,7 @@ notes - the shared block's `values are environment-specific` covers it.
 
 - Authoring: the SIT content specs (`tools/sit_specs/<STORY>.yaml` — the
   `title`, `objective`, `steps`, `expected`, `data`, `pre_extra` fields) and
-  the UAT run-record (`tools/render_production_monitoring_uat.py`). Reworded
+  the UAT wording specs (`tools/uat_specs/<FLOW>.yaml`). Reworded
   content = re-render `--force`, then `seal`.
 - R5 is partly structural now: a spec supplies `pre_common` once for the whole
   scope and at most one unnumbered `pre_extra` line per TC, which

@@ -293,12 +293,12 @@ def flow_next(fid, fm, body, concepts, manifest, flow_rel=None):
             uat[entry["status"]] += 1
     if uat["stale"]:
         return (f"aligned · journey {len(journey)} entries · {uat['stale']} STALE UAT TC(s)",
-                f"py tools/render_production_monitoring_uat.py --force && py tools/wiki.py seal",
+                f"py tools/render_uat.py --flow {fid} --force && py tools/wiki.py seal",
                 "tc-generate-uat (re-render; --force because coverage_map sits "
                 "outside AC fragment pins)")
     if not uat["active"]:
         return (f"aligned · journey {len(journey)} entries · 0 UAT TCs",
-                "py tools/render_production_monitoring_uat.py && py tools/wiki.py seal",
+                f"py tools/render_uat.py --flow {fid} && py tools/wiki.py seal",
                 "tc-generate-uat (render the chain)")
     stem = Path(flow_rel).stem if flow_rel else fid
     # collect_next always passes flow_rel; the f"flows/{stem}" fallback only

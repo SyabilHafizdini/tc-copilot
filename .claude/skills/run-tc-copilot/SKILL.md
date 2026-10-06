@@ -109,7 +109,7 @@ Rendering:
 
 ```
 py tools/render_sit.py --story US-XXXX [--force]      # SIT — one shared engine
-py tools/render_production_monitoring_uat.py [--force] # UAT — journey-derived
+py tools/render_uat.py --flow FLOW-XXXX [--force]     # UAT — one shared engine
 ```
 
 SIT test-case **content** is data at `tools/sit_specs/<STORY>.yaml` (named keys,

@@ -25,8 +25,18 @@ violation no matter how it is justified.
    `confirmed`: the flow's scenario model (`SC-MAIN` + `role: alternative`
    items, 29119-4 5.2.9) is proposed and asserted in tc-align with the
    journey (load **tc-rubric**, "Step 2", flow paragraph).
-2. **Render the chain**: copy `tools/render_production_monitoring_uat.py` as
-   this flow's run-record. Per journey entry, in order:
+2. **Render the chain**: write this flow's wording spec at
+   `tools/uat_specs/<FLOW-ID>.yaml` - **data only, named keys** - then
+   `py tools/render_uat.py --flow <FLOW-ID>`. The engine is shared; never
+   copy it. The spec is validated first and nothing is written until it
+   validates. Top level: `flow`, `out`, `story_num` (unique per flow - it is
+   the id prefix), `scenario_id` (with `{jid}`), `generator_version`,
+   `profiles` (data-set name: description), `entries` (one per journey id,
+   in journey order), and optional `module` - **omit `module` for one
+   workbook sheet per flow**; with it the test cases land on the module's
+   sheet. Per entry: `area`, `priority`, `title`, `objective`, `steps`,
+   `expected`, `profile`, optional `alts`, `continue_from`, `fresh_run`.
+   The engine does the rest per journey entry, in order:
    - ID from config `ids.tc_format_uat` (wiki-unique `UAT-` prefix; exports
      strip it so the workbook shows the org's doc-scoped `TC-...`); an
      existing scenario binding owns its ID.
@@ -48,7 +58,7 @@ violation no matter how it is justified.
      an alternative scenario names that `SC-ALT-nn` too. The engine caps
      T2.1 at band 2 while the model has no alternative item — that is a
      finding about the model, surface it, do not hide it.
-   Polish wording per TC through the run-record script, never by hand-edit
+   Polish wording per TC through the spec, never by hand-edit
    of generated files. Wording follows the **tc-style contract**
    (`.claude/skills/tc-style/SKILL.md`): short action steps, `**bold**`
    element names/values, hyphens never em/en dashes; Test Data stays `-`
@@ -92,7 +102,7 @@ violation no matter how it is justified.
   render a flow whose journey touches any story still at `proposed`.
 - **After any coverage re-confirmation that touches a member story, re-render
   the UAT scope with `--force`** (e.g.
-  `py tools/render_production_monitoring_uat.py --force`): coverage_map lives
+  `py tools/render_uat.py --flow <FLOW-ID> --force`): coverage_map lives
   outside AC fragment pins, so plain byte-stability would preserve the old
   element lists. The renderer's COVMAP pins make `cascade` flag exactly the
   affected journey TCs stale; `--force` then re-derives them, and `seal`

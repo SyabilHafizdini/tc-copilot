@@ -55,7 +55,7 @@ export const FILE_RULES: readonly GuardRule[] = [
     message:
       "Blocked: UAT test cases are generated, not edited. The journey lives " +
       "on the flow, not a spec file -- re-render with " +
-      "`py tools/render_production_monitoring_uat.py --force`, then " +
+      "`py tools/render_uat.py --flow <FLOW-ID> --force`, then " +
       "`py tools/wiki.py seal`.",
   },
   {

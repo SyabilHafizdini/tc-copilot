@@ -27,14 +27,14 @@ describe("blocked", () => {
   })
 
   test("the UAT coverage override flag (worse than SIT: the map IS the test content)", () => {
-    const m = check("bash", { command: "py tools/render_production_monitoring_uat.py --allow-unconfirmed-coverage" })
+    const m = check("bash", { command: "py tools/render_uat.py --flow FLOW-X --allow-unconfirmed-coverage" })
     expect(m).toContain("not a substitute")
   })
 
   test("editing a generated UAT test case names the UAT renderer, not sit_specs", () => {
     const m = check("edit", { filePath: "testcases/uat/production-monitoring/UAT-01.md" })
     expect(m).not.toBeNull()
-    expect(m).toContain("render_production_monitoring_uat")
+    expect(m).toContain("render_uat.py")
   })
 
   test("editing a generated SIT test case still names tools/sit_specs", () => {

@@ -39,9 +39,10 @@ FAST = "--fast" in sys.argv
 # Every scope that has a SIT render spec — the driver is shared, so this is the
 # whole SIT surface.
 SIT_STORIES = sorted(p.stem for p in (ROOT / "tools/sit_specs").glob("*.yaml"))
-# Per-flow UAT run-records (the reusable protocol is the tc-generate-uat skill).
-UAT_RENDERERS = sorted(p.relative_to(ROOT).as_posix()
-                       for p in (ROOT / "tools").glob("render_*_uat.py"))
+# Every flow that has a UAT data spec - the engine tools/render_uat.py is shared
+# (the reusable protocol is the tc-generate-uat skill).
+UAT_FLOWS = sorted(p.stem for p in (ROOT / "tools/uat_specs").glob("*.yaml")) \
+    if (ROOT / "tools/uat_specs").exists() else []
 SUITES = sorted(p.stem for p in (ROOT / "suites").glob("*.yaml")) \
     if (ROOT / "suites").exists() else []
 FLOW_FILES = sorted(p for p in (ROOT / "flows").glob("*.md")
@@ -125,11 +126,12 @@ else:
     print("[PASS] SIT byte-stability: rendered 0, all TC files untouched")
 
 # UAT byte-stability: the journey UAT re-render must also touch nothing
-if not UAT_RENDERERS:
-    print("[SKIP] UAT byte-stability: bundle has no tools/render_*_uat.py")
+if not UAT_FLOWS:
+    print("[SKIP] UAT byte-stability: bundle has no tools/uat_specs/*.yaml")
 else:
-    for _r in UAT_RENDERERS:
-        out = run([_r], name=f"re-render UAT (unchanged wiki): {Path(_r).stem}")
+    for _f in UAT_FLOWS:
+        out = run(["tools/render_uat.py", "--flow", _f],
+                  name=f"re-render UAT (unchanged wiki): {_f}")
         line = rendered_line(out)
         if not line or not line.startswith("rendered 0"):
             print("[FAIL] UAT byte-stability:", out)
@@ -140,12 +142,11 @@ else:
 # These fences are the platform's core safety properties, so a bundle that
 # cannot exercise one says so LOUDLY rather than passing quietly.
 #
-# The SIT and card fences are fixture-backed and run in EVERY bundle. The other
-# two cannot be: the seal fence refuses when TC files are unsealed, and an
-# empty bundle has no TC files to leave unsealed; the UAT fence needs a
-# per-flow UAT run-record, which each project authors via tc-generate-uat.
-# Both are content-dependent by construction, not by oversight -- faking
-# content into the tracked wiki to satisfy them would be worse than saying so.
+# The SIT, UAT and card fences are fixture-backed and run in EVERY bundle. The
+# seal fence cannot be: it refuses when TC files are unsealed, and an empty
+# bundle has no TC files to leave unsealed. That is content-dependent by
+# construction, not by oversight -- faking content into the tracked wiki to
+# satisfy it would be worse than saying so.
 _fence_skips = []
 
 # Self-contained: the spec and the draft story it points at both live under
@@ -160,13 +161,13 @@ else:
               name="coverage fence: render refuses unconfirmed coverage_status")
     assert "REFUSED" in out and "coverage_status" in out, out
 
-if not UAT_RENDERERS:
-    _fence_skips.append("UAT coverage fence (no tools/render_*_uat.py)")
-else:
-    out = run([UAT_RENDERERS[0]], expect=1,
-              env={"TC_UAT_FIXTURE_DIR": "tools/fixtures/uat_flow_gate"},
-              name="UAT coverage fence: render refuses an unconfirmed member story")
-    assert "render UAT REFUSED" in out, out
+# Self-contained too: the spec, the flow and the unconfirmed story all live
+# under tools/fixtures/uat_flow_gate/, so this proves the fence in any bundle.
+out = run(["tools/render_uat.py", "--flow", "FLOW-fixture-gate"], expect=1,
+          env={"TC_UAT_FIXTURE_DIR": "tools/fixtures/uat_flow_gate",
+               "TC_UAT_SPEC_DIR": "tools/fixtures/uat_flow_gate"},
+          name="UAT coverage fence: render refuses an unconfirmed member story")
+assert "render UAT REFUSED" in out, out
 
 if not SUITES:
     _fence_skips.append("seal fence (no suites/*.yaml, and no TC files to "
@@ -381,6 +382,7 @@ run(["tools/test_app_next_json.py"], name="unit: next --json")
 run(["tools/test_wiki_next_banners.py"], name="unit: next banners + phase")
 run(["tools/test_app_actions.py"], name="unit: app action allowlist")
 run(["tools/test_wiki_session.py"], name="unit: wiki session revert")
+run(["tools/test_render_uat.py"], name="unit: UAT engine + chain validator")
 run(["tools/test_app_sidecar.py"], name="unit: opencode sidecar supervisor")
 run(["tools/test_app_read_models.py"], name="unit: app read models")
 run(["tools/test_app_watcher.py"], name="unit: app change watcher")

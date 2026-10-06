@@ -27,8 +27,10 @@ the flow's file name, not its id.
 
 ## How it runs
 
-1. **Render the chain.** The flow gets its own run-record script, copied
-   from `tools/render_production_monitoring_uat.py`. Per journey entry:
+1. **Render the chain.** The flow gets a wording spec at
+   `tools/uat_specs/<FLOW-ID>.yaml`, rendered by the shared engine
+   `py tools/render_uat.py --flow <FLOW-ID>`. Leave `module` out of the spec
+   for one workbook sheet per flow. Per journey entry:
    - id from `ids.tc_format_uat` (`UAT-` prefix in the wiki; exports strip
      it);
    - `covers`: the story AC ref plus the journey ref `#JNN`, plus the flow
