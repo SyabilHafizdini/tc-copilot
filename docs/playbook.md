@@ -92,6 +92,19 @@ A suite is a filter, never generation. Describe it in plain language
 ("SIT regression without module X, P1 only"), confirm the resolved count,
 recompile any time.
 
+### Review and edit in the app
+
+`py tools/wiki.py app` opens the operator app. The Test Cases page shows every
+test case in the workbook's columns; a row opens a review panel where you can
+reword one field and Save. Save runs `wiki tc edit` under your name
+(`provenance.human` in `config.yaml`): the text goes into the spec, the test
+case is re-rendered and sealed, and one commit records it. It never changes a
+confidence level; rewording a part you had confirmed reopens its doubt, and
+the panel says so before you save. The Workbook page draws a compiled
+workbook from the file, marks the rows that changed since it was compiled and
+offers Recompile. Both are described in [cli.md](cli.md) under "Test case
+edits" and "Suites and export".
+
 ## When you spot an error (`tc-correct`)
 
 Tell the agent the correction in plain language. It records your words
@@ -106,20 +119,60 @@ py tools/wiki.py cascade      # what is stale
 Never hand-edit a generated test case. Lint flags it (W4) and regeneration
 skips that file until you `release` or `revert` it.
 
+## When the AI is unsure (`tc-resolve`)
+
+Every part of a test case rated Medium or Low is a doubt, listed by:
+
+```
+py tools/wiki.py doubts list --story US-XXXX
+```
+
+`wiki next` shows open doubts as a non-blocking `also:` line, and lint warns
+W8 while they are ungrouped. The agent groups doubts that one answer settles
+under a root question in `doubts/US-XXXX.yaml`, then puts the questions
+touching the most test cases first on a card:
+
+```
+py tools/wiki.py doubts card --story US-XXXX --top 5
+```
+
+For each question you answer `accept` (the proposed answer is right) or in
+your own words. The agent records your answer only when you tell it to:
+
+```
+py tools/wiki.py card revise <card> --by <you> --answer Q-US-XXXX-01=accept
+py tools/wiki.py doubts answer --card <card> --by <you>
+```
+
+An `accept` lifts those parts to High on the next render, with a remark naming
+your answer. Your own words lift nothing yet: the agent writes them into the
+story, rewrites the parts, renders, and brings a new card for you to confirm
+the rewritten text. The agent never raises a confidence level itself, and an
+answer you give in chat goes onto a card before it counts. The workbook's
+`AI Doubts` sheet lists the open questions.
+
 ## When a new PRD version arrives (`tc-change-report`)
 
-Drop it in `inputs/prd/v<N+1>/` and run `ingest-prd`. Nothing changes: the
-version is staged and a change report is written. The agent classifies each
+Put the file in `PUT_FILES_HERE/` and let `tc-intake` route it (it asks you
+which PRD and which version), or place it under `inputs/prd/<id>/v<N+1>/`
+yourself; the agent never places a PRD document. Then run
+`ingest-prd --prd <id>`. Nothing
+changes: that PRD's version is staged and its change report is written; other
+PRDs are untouched. The agent classifies each
 change editorial or material and presents conflicts with your Resolutions
 first. One decision as a unit:
 
 ```
-py tools/wiki.py approve-cr CR-NNN --by <you>
-py tools/wiki.py reject-cr  CR-NNN --by <you>
+py tools/wiki.py approve-cr CR-NNN --by <you> --prd <id>
+py tools/wiki.py reject-cr  CR-NNN --by <you> --prd <id>
 ```
 
-Approval fires the cascade; affected stories drop to needs-review for
-re-alignment or a direct re-assert.
+The agent runs these only when you tell it to. Approval fires the cascade;
+stories that cite a changed or removed section of that PRD drop to
+needs-review for re-alignment or a direct re-assert. If a newer version of the
+same PRD is staged before you decide, the older report can only be rejected;
+`wiki next` names the report to act on. The app's Changes page lists each PRD's staged version and its pending report id, with the
+`diff --prd <id>` command to read the changes; it does not show the report body.
 
 ## When requirements die or test cases are replaced (`tc-lifecycle`)
 
@@ -146,5 +199,8 @@ unless you `unretire` it.
 | regenerate a hand-edited test case | your edit would be destroyed |
 | change `tc_format` after first generation | ids are in defect reports; use `migrate-ids` |
 | let the agent set `aligned` or `asserted_by` | that is your signature |
+| render a confidence level raised in a spec | only your answer on a card raises a level |
+| apply a doubts card after its questions or test cases changed | you answered what the card showed, not what is there now |
+| run any command but `status`, `lint` and `migrate-prds` on a project written before the PRD registry | the manifest is schema 1; `migrate-prds` converts it once, at your instruction, with the PRD id and title you choose (see [cli.md](cli.md), Migrations) |
 
 If a command refuses, the fix is upstream. Never a workaround.

@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from wiki import load_all
 import wiki_graph as wg
-from testkit import skip_if_empty
+from testkit import SkipTest, need, skip_if_empty
 
 
 def test_build_model_has_br_and_resolution_nodes():
@@ -57,6 +57,59 @@ def test_scope_coverage_is_one_story():
     assert all(n["id"].startswith(story + "#") for n in frags)
 
 
+def _fixture_model():
+    """A two-module project built in memory: each module is derived from its
+    PRD's top-level section, each story from a subsection. No file is read,
+    so this holds in a project that has no PRD of its own."""
+    def story(sid):
+        return {"type": "User Story", "id": sid, "title": sid,
+                "status": "aligned",
+                "acceptance_criteria": [{"id": "AC1", "text": "Fixture."}],
+                "business_rules": [{"id": "BR-1", "text": "Fixture."}]}
+    concepts, edges = {}, []
+    for mod, prd in (("a", "rental-application"), ("b", "rental-payment")):
+        top, sub = f"sources/prd/{prd}/1", f"sources/prd/{prd}/1-1"
+        for rel, title in ((top, "1 Top"), (sub, "1.1 Sub")):
+            concepts[rel] = ({"type": "PRD Section", "id": f"prd#{rel[12:]}",
+                              "title": title, "prd": prd}, "", None)
+        concepts[f"modules/{mod}"] = ({"type": "Module", "id": mod,
+                                       "title": f"Module {mod}"}, "", None)
+        concepts[f"stories/US-{mod}"] = (story(f"US-{mod}"), "", None)
+        tc = f"testcases/sit/{mod}/1.1-AC01-01"
+        concepts[tc] = ({"type": "Test Case", "id": f"{mod}-1", "title": "T",
+                         "status": "active",
+                         "covers": [f"/stories/US-{mod}.md#AC1"]}, "", None)
+        edges += [[f"modules/{mod}", "derived_from", top],
+                  [f"stories/US-{mod}", "module", f"modules/{mod}"],
+                  [f"stories/US-{mod}", "derived_from", sub],
+                  [tc, "covers", f"stories/US-{mod}#AC1"]]
+    manifest = {"schema_version": 2, "edges": edges, "prds": {
+        "rental-application": {"title": "A", "adopted_version": 1,
+                            "staged_version": None},
+        "rental-payment": {"title": "B", "adopted_version": 2,
+                        "staged_version": None}}}
+    return wg.build_model(concepts, manifest)
+
+
+def test_scope_traceability_anchors_each_story_to_its_modules_prd_section():
+    sub = wg.scope_traceability(_fixture_model())
+    kinds = {n["type"] for n in sub["nodes"]}
+    assert kinds == {"PRD Section", "Story", "AC", "TC"}, f"types: {kinds}"
+    prd = sorted(n["id"] for n in sub["nodes"] if n["type"] == "PRD Section")
+    # one anchor per module: the module's top-level section, never the
+    # subsection the story itself cites
+    assert prd == ["sources/prd/rental-application/1",
+                   "sources/prd/rental-payment/1"], prd
+    src = {l["source"] for l in sub["links"]}
+    assert not src & set(prd), "PRD anchors must be roots (no outgoing edge)"
+    assert {(l["source"], l["target"]) for l in sub["links"]
+            if l["type"] == "derived_from"} == {
+        ("stories/US-a", "sources/prd/rental-application/1"),
+        ("stories/US-b", "sources/prd/rental-payment/1")}, sub["links"]
+    assert {l["type"] for l in sub["links"]} == {"derived_from", "has_ac",
+                                                 "covers"}
+
+
 def test_scope_traceability_is_clean_four_level_tree():
     concepts, manifest = load_all()
     model = wg.build_model(concepts, manifest)
@@ -64,6 +117,9 @@ def test_scope_traceability_is_clean_four_level_tree():
     kinds = {n["type"] for n in sub["nodes"]}
     # only the four chain node types survive — no BR/Component/Term/Resolution
     assert kinds <= {"PRD Section", "Story", "AC", "TC"}, f"extra types: {kinds}"
+    # The anchors are asserted on live content only when it has a PRD; the
+    # fixture test above proves them in every project.
+    need("PRD Section", "project has no PRD section to anchor a story to")
     # Internal links point child->parent (Story->PRD, TC->AC), so PRD anchors
     # are pure sinks here -> they become the tree ROOTS after convert() flips
     # derived_from to SPECIFIES. Module anchoring yields few anchors, not the
@@ -82,9 +138,13 @@ def test_scope_traceability_is_clean_four_level_tree():
 def _run():
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:
-        fn()
+        try:
+            fn()
+        except SkipTest as e:
+            print(f"[SKIP] {fn.__name__}: {e}")
+            continue
         print(f"[PASS] {fn.__name__}")
-    print(f"{len(fns)} passed")
+    print(f"{len(fns)} ran")
 
 
 if __name__ == "__main__":

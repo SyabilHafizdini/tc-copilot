@@ -184,10 +184,15 @@ def _spec():
             "figma": None, "out": "testcases/sit/US-J", "ac_prefix": "J",
             "scenario_id": "SIT-{ac_id}-{seq:02d}", "generator_version": "sit-1.0",
             "pre_common": "signed in", "post_default": "none",
+            "states": {"home": "Portal home.", "s1": "Step 1 done."},
+            "entry_state": "home", "profiles": {"p1": "persona 1"},
             "test_cases": [
                 {"ac": "AC1", "seq": 1, "technique": "UC", "priority": "P1",
                  "area": "A", "title": "t", "objective": "o",
-                 "data": "**A** = 1", "steps": "1. go", "expected": "1. ok"}]}
+                 "data": "**A** = 1", "steps": "1. go", "expected": "1. ok",
+                 "section": "A", "continue_from": "start", "run": "Main",
+                 "starts_at": "home", "ends_at": "s1", "profile": "p1",
+                 "confidence": {"scenario": "High", "steps": "High", "data": "High", "expected": "High"}}]}
 
 
 def test_apply_patch_sets_a_field_and_adds_a_case():
@@ -204,6 +209,9 @@ def test_apply_patch_sets_a_field_and_adds_a_case():
                 "ac": "AC1", "seq": 2, "technique": "BVA", "priority": "P2",
                 "area": "A", "title": "b", "objective": "o", "data": "**A** = 0",
                 "steps": "1. go", "expected": "1. rejected",
+                "section": "A", "continue_from": "AC1/1", "run": "Main",
+                "starts_at": "s1", "ends_at": "s1", "profile": "p1",
+                "confidence": {"scenario": "High", "steps": "High", "data": "High", "expected": "High"},
                 "coverage_items": ["BVA-01"]}}]}), encoding="utf-8")
         n, errs = rj.apply_patch(sp, pf)
         assert errs == [] and n == 2, (n, errs)

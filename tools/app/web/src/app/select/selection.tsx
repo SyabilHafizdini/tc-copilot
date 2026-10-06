@@ -12,11 +12,15 @@ export type SelectionStore = {
   seed: ComposerSeed | null
   askInChat(): void
   correctInChat(): void
+  /** The Settings chat switch, supplied by App through SelectionProvider.
+   *  When false there is no chat to hand a selection to, so every control
+   *  that builds or sends one hides itself. */
+  chatEnabled: boolean
 }
 
 const INERT: SelectionStore = {
   items: [], toggle: () => {}, clear: () => {}, seed: null,
-  askInChat: () => {}, correctInChat: () => {},
+  askInChat: () => {}, correctInChat: () => {}, chatEnabled: true,
 }
 
 const Ctx = createContext<SelectionStore>(INERT)
@@ -25,7 +29,9 @@ export function useSelection(): SelectionStore {
   return useContext(Ctx)
 }
 
-export function SelectionProvider({ children }: { children: React.ReactNode }) {
+export function SelectionProvider({ children, chatEnabled = true }: {
+  children: React.ReactNode; chatEnabled?: boolean
+}) {
   const [items, setItems] = useState<SelNode[]>([])
   const [seed, setSeed] = useState<ComposerSeed | null>(null)
   const nonce = useRef(0)
@@ -48,7 +54,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
   const correctInChat = useCallback(() => publish('correct'), [publish])
 
   const value = useMemo<SelectionStore>(
-    () => ({ items, toggle, clear, seed, askInChat, correctInChat }),
-    [items, toggle, clear, seed, askInChat, correctInChat])
+    () => ({ items, toggle, clear, seed, askInChat, correctInChat, chatEnabled }),
+    [items, toggle, clear, seed, askInChat, correctInChat, chatEnabled])
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

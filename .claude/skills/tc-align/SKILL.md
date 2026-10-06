@@ -28,6 +28,14 @@ one, they are mutually exclusive:
    Figma page **png** (view the image, then write/refresh the
    `# Visual Description` body of the Figma concept, noting PRD/mock
    discrepancies), the full current glossary (`glossary/index.md` then files).
+   A story may cite sections of more than one PRD; list every section it
+   draws on, each as `/sources/prd/<prd-id>/<section>.md`. Lint L13 rejects a
+   ref to a PRD that is not registered (and a flat `sources/prd/<section>.md`
+   ref with no PRD id). Name the PRD whenever you quote a section to the
+   human: the same section number can exist in two PRDs. A section that a
+   later approved PRD version removed stays on disk flagged `removed_in`; a
+   story citing it drops to needs-review once, and the cause names the
+   removal - re-align it, then the human's re-assert settles the flag.
 3. Rewrite the story: `# Summary` (short falsifiable statements),
    `acceptance_criteria` (IDs = the PRD's own AC numbers, e.g.
    `1.1.3.1.1-AC5`; text = PRD verbatim minus line-wrap artifacts),
@@ -149,8 +157,8 @@ overwrite whatever `provenance` was already there.
 2. Author `acceptance_criteria` as a list of mappings, one per falsifiable
    statement you can draw from the prose: `{id: <section-slug>-AC01, text:
    "..."}`, `{id: <section-slug>-AC02, text: "..."}`, … `<section-slug>` is
-   the slug `ingest-prd` gave the cited section (section `4.1.1.3` files as
-   `sources/prd/4-1-1-3.md`, so its ACs are `4-1-1-3-AC01`,
+   the slug `ingest-prd` gave the cited section (section `4.1.1.3` of PRD
+   `<id>` files as `sources/prd/<id>/4-1-1-3.md`, so its ACs are `4-1-1-3-AC01`,
    `4-1-1-3-AC02`, …) — each id names its own origin. A bare string entry or
    a mapping missing `id` is an L13 error regardless of provenance.
 3. As each AC is drafted, immediately write its Resolution
@@ -277,4 +285,4 @@ The human's assert on the card confirms the model.
 - Generating UAT test cases from an asserted journey → `tc-generate-uat`.
 - A human is correcting already-asserted content → `tc-correct` (it captures
   the statement verbatim and propagates it; alignment is for first contact).
-- A new PRD version arrived → `tc-change-report` first; re-align after.
+- A new PRD version arrived (of any one PRD) → `tc-change-report` first; re-align after.

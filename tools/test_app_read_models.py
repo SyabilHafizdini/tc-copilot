@@ -18,10 +18,28 @@ from testkit import skip_if_empty
 
 def test_state_has_every_documented_key():
     s = read_models.state()
-    for key in ("project", "prd", "stories", "flows", "gaps", "cards",
-                "change_reports", "suites", "totals", "next", "inventory"):
+    for key in ("schema1", "notice", "project", "prds", "stories", "flows",
+                "gaps", "cards", "change_reports", "suites", "totals", "next",
+                "inventory"):
         assert key in s, f"missing key: {key}"
 
+
+def test_state_carries_no_migration_notice_on_a_schema2_project():
+    """`schema1` and `notice` drive the app's migration banner. This project
+    is schema 2 (or has no manifest yet, which is the schema-2 default); the
+    schema-1 side is tested on a scratch root in test_wiki_migrate_prds.py."""
+    s = read_models.state()
+    assert s["schema1"] is False and s["notice"] is None, (s["schema1"], s["notice"])
+
+
+def test_state_lists_prds_and_has_no_single_prd_key():
+    s = read_models.state()
+    assert "prd" not in s, "the single-PRD key is gone"
+    assert isinstance(s["prds"], list), s["prds"]
+    for row in s["prds"]:
+        assert set(row) == {"id", "title", "adopted", "staged"}, row
+    for cr in s["change_reports"]:
+        assert "prd" in cr, cr
 
 def test_state_is_json_serialisable():
     """It is served over HTTP; a stray Path or set would 500 at request time."""
@@ -186,6 +204,24 @@ def test_suite_preview_does_not_mutate_the_repo():
     after = subprocess.run(["git", "status", "--porcelain"], cwd=ROOT,
                            capture_output=True, text=True).stdout
     assert before == after, "suite_preview mutated the repo"
+
+
+def test_suite_preview_accepts_empty_prd_filters():
+    p = read_models.suite_preview({"kind": "sit", "include_prds": [],
+                                   "exclude_prds": []})
+    assert p["count"] == read_models.suite_preview({"kind": "sit"})["count"], p
+
+
+def test_suite_preview_rejects_an_unknown_or_malformed_prd_id():
+    for bad in ({"include_prds": ["no-such-prd-xyz"]},
+                {"exclude_prds": ["no-such-prd-xyz"]},
+                {"include_prds": ["../x"]}, {"include_prds": "rental"}):
+        try:
+            read_models.suite_preview(bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"bad PRD filter must raise ValueError: {bad!r}")
 
 
 if __name__ == "__main__":

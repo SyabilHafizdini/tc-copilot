@@ -1,9 +1,11 @@
 import { ArrowUpRight, X } from 'lucide-react'
 import { useSelection } from './selection'
 
+// The bar exists only to hand a selection to chat, so with chat switched Off
+// (chatEnabled false on the selection context) it renders nothing at all.
 export function SelectionBar() {
-  const { items, askInChat, clear } = useSelection()
-  if (items.length === 0) return null
+  const { items, askInChat, clear, chatEnabled } = useSelection()
+  if (!chatEnabled || items.length === 0) return null
   return (
     <div className="selbar" role="region" aria-label="Selection">
       <span className="selbar-count">{items.length} selected</span>

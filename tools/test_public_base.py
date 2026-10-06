@@ -41,6 +41,21 @@ BANNED_LITERAL = ["R" + "SN", "SEN" + "SE", "DS" + "HM", "MIN" + "DEF",
 _WB_TOKENS = [("NC" + "S"), ("LR" + "U"), ("NS" + "N"), ("Na" + "vy"),
               ("ARM" + "Y")]
 _WB_RES = [(label, re.compile(r"\b" + label + r"\b")) for label in _WB_TOKENS]
+# A second sweep, added when a later platform change was ported from a
+# project branch: that project's identifiers. Same concatenation rule. The
+# first list is matched anywhere, ignoring case; the second as whole words,
+# ignoring case; the third as whole words in this exact case (short acronyms
+# that are ordinary letter runs in other casings).
+_CI_TOKENS = ["om" + "js", "mock" + "pass", "sing" + "pass", "marri" + "age",
+              "solem" + "ni", "ourm" + "lpyi", "hafiz" + "dini",
+              "us-r" + "om", "flow-r" + "om"]
+_CI_WB_TOKENS = ["bri" + "de", "gro" + "om", "spo" + "use", "ene" + "ts"]
+_CS_WB_TOKENS = ["RO" + "M", "OM" + "J", "NR" + "IC"]
+_MORE_RES = ([(t, re.compile(re.escape(t), re.I)) for t in _CI_TOKENS]
+             + [(t + " (word)", re.compile(r"\b" + t + r"\b", re.I))
+                for t in _CI_WB_TOKENS]
+             + [(t + " (word-boundary)", re.compile(r"\b" + t + r"\b"))
+                for t in _CS_WB_TOKENS])
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}")
 # tc-agent@internal is the platform's own auto-commit identity (config.yaml
 # provenance.agent_git_email) -- not a personal address, and has no dotted
@@ -94,6 +109,9 @@ def test_no_banned_strings():
         for label, rx in _WB_RES:
             if rx.search(text):
                 hits.append(f"{rel}: {label} (word-boundary)")
+        for label, rx in _MORE_RES:
+            if rx.search(text):
+                hits.append(f"{rel}: {label}")
     assert not hits, "banned strings found:\n" + "\n".join(hits)
 
 
@@ -136,6 +154,9 @@ def test_reference_workbooks_clean():
             for label, rx in _WB_RES:
                 if rx.search(text):
                     hits.append(f"{name}!{sheet}!{coord}: {label} (word-boundary)")
+            for label, rx in _MORE_RES:
+                if rx.search(text):
+                    hits.append(f"{name}!{sheet}!{coord}: {label}")
     assert not hits, "banned strings found in reference workbooks:\n" + "\n".join(hits)
 
 

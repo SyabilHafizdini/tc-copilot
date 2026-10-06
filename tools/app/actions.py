@@ -8,15 +8,20 @@ the app cannot be talked into running a command that is not on this list.
 Sub-project B ships read-only actions only. Mutating actions (assert,
 card revise|discard, approve-cr, retire, void-ac, ...) arrive with the
 decision surfaces in sub-project D, and each one must be added here with its
-own validated builder -- never by relaxing these patterns.
+own validated builder -- never by relaxing these patterns. Two builders write
+a file, both under the ignored build/ tree: tc_edit (the edit text, under
+build/edits/ - the text must never ride in the argv) and flow_draft (the
+drawing, under build/flowdrafts/).
 """
 import re
 import sys
+import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from wiki import load_config
+from wiki import load_config, signature_problem
+from wiki_tcedit import EDITS_DIR, SIT_FIELDS, TEXT_MAX, UAT_FIELDS
 
 # Deliberately strict: uppercase story ids and lowercase-hyphen flow slugs are
 # the only shapes the wiki uses. Anything else -- shell metacharacters, path
@@ -43,11 +48,17 @@ class ActionError(ValueError):
 
 def human():
     """The operator's signature, from config.yaml provenance.human."""
-    who = ((load_config().get("provenance") or {}).get("human") or "").strip()
+    who = (load_config().get("provenance") or {}).get("human") or ""
+    who = who.strip() if isinstance(who, str) else who
     if not who:
         raise ActionError(
             "config.yaml provenance.human is not set -- it is the signature "
             "every human-gated command is run under")
+    # The same rule the commands apply to --by: one line, never a flag.
+    problem = signature_problem(who)
+    if problem:
+        raise ActionError(
+            f"config.yaml provenance.human cannot sign a command: {problem}")
     return who
 
 
@@ -200,6 +211,43 @@ def _suite_compile(params):
     return ["suite", "compile", name]
 
 
+# Test case ids as config ids.tc_format / tc_format_uat produce them
+# ("1.1-AC02-01", "UAT-1.1-AC02-01"). Must start alphanumeric, so a value can
+# never be read as a flag; no slash, space or shell metacharacter.
+TC_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+# The one editable set, owned by the command that enforces it per level.
+TC_EDIT_FIELDS = frozenset(SIT_FIELDS + UAT_FIELDS)
+
+
+def _tc_edit(params):
+    """A human rewords one field of one test case. The text travels in a file
+    under build/edits/, never in the argv: `wiki tc edit` reads it with
+    --from and deletes it."""
+    extra = set(params) - {"id", "field", "text"}
+    if extra:
+        raise ActionError(f"unexpected params: {sorted(extra)}")
+    tc_id, field, text = params.get("id"), params.get("field"), params.get("text")
+    if not isinstance(tc_id, str) or not TC_ID_RE.fullmatch(tc_id):
+        raise ActionError(f"invalid test case id: {tc_id!r}")
+    if not isinstance(field, str) or field not in TC_EDIT_FIELDS:
+        raise ActionError(f"field not editable: {field!r} "
+                          f"(editable: {', '.join(sorted(TC_EDIT_FIELDS))})")
+    if not isinstance(text, str):
+        raise ActionError(f"text must be a string, got {type(text).__name__}")
+    if len(text) > TEXT_MAX:
+        raise ActionError(f"text is {len(text)} characters; the limit is {TEXT_MAX}")
+    try:
+        data = text.encode("utf-8")
+    except UnicodeEncodeError:
+        raise ActionError("text is not valid Unicode")
+    who = human()
+    name = f"{uuid.uuid4().hex}.txt"
+    (ROOT / EDITS_DIR).mkdir(parents=True, exist_ok=True)
+    (ROOT / EDITS_DIR / name).write_bytes(data)
+    return ["tc", "edit", tc_id, "--field", field,
+            "--from", f"{EDITS_DIR}/{name}", "--by", who]
+
+
 FLOW_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{1,63}$")
 FLOW_DRAFT_DIR = ROOT / "build/flowdrafts"
 FLOW_DRAFT_MAX_BYTES = 256 * 1024
@@ -232,13 +280,13 @@ def _flow_draft(params):
 
 
 MUTATING = {"assert", "card_revise", "card_discard", "session_revert", "export",
-            "suite_compile", "flow_draft"}
+            "suite_compile", "tc_edit", "flow_draft"}
 
 ALLOWLIST = {"status": _status, "lint": _lint, "gate": _gate, "next": _next,
              "assert": _assert, "card_revise": _card_revise,
              "card_discard": _card_discard, "session_revert": _session_revert,
              "export": _export, "suite_compile": _suite_compile,
-             "flow_draft": _flow_draft}
+             "tc_edit": _tc_edit, "flow_draft": _flow_draft}
 
 
 def build(name, params=None):

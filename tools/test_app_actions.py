@@ -29,7 +29,7 @@ def test_allowlist_is_read_only_in_b():
     assert set(actions.ALLOWLIST) == {
         "status", "lint", "gate", "next", "assert", "card_revise",
         "card_discard", "session_revert", "export", "suite_compile",
-        "flow_draft"}, sorted(actions.ALLOWLIST)
+        "tc_edit", "flow_draft"}, sorted(actions.ALLOWLIST)
 
 
 def test_flow_draft_parks_the_drawing_and_builds_argv():
@@ -116,6 +116,32 @@ def test_human_signature_is_configured():
     who = actions.human()
     assert isinstance(who, str) and who.strip(), \
         "config.yaml provenance.human must be set"
+
+
+def test_a_signature_that_is_not_one_line_of_a_name_cannot_sign_an_action():
+    """The rule `tc edit`, approve-cr and reject-cr apply to --by, met at the
+    app's boundary before any file is written or command is built."""
+    real = actions.load_config
+    edits = ROOT / "build/edits"
+    before = set(edits.glob("*.txt")) if edits.exists() else set()
+    try:
+        for bad, why in (("--no-commit", "is a flag, not a name"),
+                         ("a\nb", "more than one line"), ("  ", "is not set"),
+                         (7, "is empty")):
+            actions.load_config = lambda bad=bad: {"provenance": {"human": bad}}
+            for name, params in (
+                    ("tc_edit", {"id": "1.1-AC01-01", "field": "title", "text": "x"}),
+                    ("session_revert", {"session": "US-VHLD-001"})):
+                try:
+                    actions.build(name, params)
+                except actions.ActionError as e:
+                    assert why in str(e), (bad, str(e))
+                else:
+                    raise AssertionError(f"{bad!r} signed {name}")
+    finally:
+        actions.load_config = real
+    after = set(edits.glob("*.txt")) if edits.exists() else set()
+    assert after == before, "a refused edit left its text file behind"
 
 
 def test_runner_returns_rc_stdout_stderr():
@@ -399,6 +425,61 @@ def test_suite_compile_rejects_extra_params():
         assert "graph" in str(e), str(e)
     else:
         raise AssertionError("extra params must be refused")
+
+
+def _edit_file(argv):
+    return ROOT / argv[argv.index("--from") + 1]
+
+
+def test_tc_edit_argv_carries_a_file_never_the_text():
+    text = "1. Click **Save**; rm -rf / && echo \"x\"\n2. --force"
+    argv = actions.build("tc_edit", {"id": "1.1-AC02-01", "field": "steps", "text": text})
+    try:
+        assert argv[:5] == ["tc", "edit", "1.1-AC02-01", "--field", "steps"], argv
+        assert argv[7:] == ["--by", actions.human()], argv
+        rel = argv[argv.index("--from") + 1]
+        assert rel.startswith("build/edits/") and rel.endswith(".txt"), rel
+        assert all(text not in a and "rm -rf" not in a for a in argv), argv
+        assert _edit_file(argv).read_bytes() == text.encode("utf-8")
+    finally:
+        _edit_file(argv).unlink(missing_ok=True)
+
+
+def test_tc_edit_writes_a_fresh_file_per_call_and_accepts_uat_ids_and_empty_text():
+    a = actions.build("tc_edit", {"id": "UAT-1.1-AC01-01", "field": "title", "text": "t"})
+    b = actions.build("tc_edit", {"id": "UAT-1.1-AC01-01", "field": "pre_extra", "text": ""})
+    try:
+        assert _edit_file(a) != _edit_file(b)
+        assert _edit_file(b).read_bytes() == b""
+    finally:
+        _edit_file(a).unlink(missing_ok=True)
+        _edit_file(b).unlink(missing_ok=True)
+
+
+def test_tc_edit_is_mutating():
+    assert "tc_edit" in actions.MUTATING, "tc edit renders, seals and commits"
+
+
+def test_tc_edit_refuses_bad_ids_fields_and_text_and_writes_no_file():
+    edits = ROOT / "build/edits"
+    before = set(edits.glob("*")) if edits.exists() else set()
+    good = {"id": "1.1-AC02-01", "field": "steps", "text": "x"}
+    bad = [dict(good, id=i) for i in ("../x", "a/b", "--force", "1.1 AC02", "", "x" * 80,
+                                      "1.1-AC02-01\n", 5, None)]
+    bad += [dict(good, field=f) for f in ("confidence", "remarks", "ac", "seq", "technique",
+                                          "coverage_items", "run", "section", "continue_from",
+                                          "starts_at", "", None, ["steps"])]
+    bad += [dict(good, text=t) for t in (None, 5, ["x"], "x" * 20001)]
+    bad += [dict(good, extra="1"), {"id": "1.1-AC02-01", "field": "steps"}]
+    for params in bad:
+        try:
+            actions.build("tc_edit", params)
+        except actions.ActionError:
+            pass
+        else:
+            raise AssertionError(f"must refuse {params!r}")
+    after = set(edits.glob("*")) if edits.exists() else set()
+    assert after == before, "a refused edit left a file behind"
 
 
 if __name__ == "__main__":

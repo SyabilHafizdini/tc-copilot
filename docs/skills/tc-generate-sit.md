@@ -52,6 +52,41 @@ The spec is validated before anything is written. Unknown keys, bad
 techniques, duplicate `(ac, seq)`, unknown AC or rule ids, and coverage
 items the model does not define all abort with the offending index.
 
+Every entry also names its `section`, the entry it continues from
+(`continue_from`, or `start`), its `run`, `starts_at`, `ends_at` and
+`profile` (the spec declares `states`, `entry_state` and `profiles`) and a
+`confidence` level with `remarks` for each of four parts: scenario, steps,
+data and expected. The renderer refuses a spec without these keys.
+
+Choose the runs first. A run is one flow with one data profile, and each run
+becomes its own worksheet in the workbook. The main profile's flow is the
+first run: its refusals, read-only checks, base cases and state observations.
+Each valid variant goes on a variant flow run that walks the flow again from
+`continue_from: start`, using the variant at each step it has one. A case
+that needs no earlier state of a flow goes on the `Standalone checks` run as
+a `start`. A state-transition check is an observation: it continues from the
+case that performed the action and verifies the resulting state, never
+repeating the action; an observation that does not visit the AC's form sets
+the optional `element_block: false` so it does not list controls of a page
+the tester is not on. A fork (`fresh_run: true`) is the last resort, only for
+a case that needs a state its flow has already moved past; more than one in ten entries forking
+means the variants and transition checks are misplaced. The rule itself is in
+`tc-style` (R6).
+
+The spec is written in run order, run by run and section by section, so each
+run reads as a flow with one section row per stage. Besides the missing-key
+and unknown-key refusals above, the validator refuses:
+
+- a run that does not begin with `continue_from: start` (`each sheet is one
+  flow and starts from the beginning`);
+- a `continue_from` into another run (`a flow never continues from another
+  sheet; use start and walk this flow from the beginning`);
+- a run or section that is not contiguous;
+- a `start` entry that does not begin at the `entry_state`;
+- a predecessor whose `ends_at` is not this entry's `starts_at`;
+- a second linear continuation of one state, or a linear link that changes
+  profile (both need `fresh_run: true`, or a `start`).
+
 Wording follows `tc-style`: `**Field** = value` test data, short imperative
 steps, bold on UI elements, hyphens not dashes. Expected results of view and
 verify ACs end with the element-verification block built from the coverage

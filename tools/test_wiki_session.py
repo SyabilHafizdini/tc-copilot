@@ -41,6 +41,9 @@ def _mk_repo(d):
     _git(d, "init", "-q")
     _git(d, "config", "user.name", "tc-agent")
     _git(d, "config", "user.email", "tc-agent@internal")
+    # Hermetic: a scratch repo must not inherit the machine's global
+    # commit.gpgsign (an expired or absent key would fail every commit here).
+    _git(d, "config", "commit.gpgsign", "false")
     (d / "config.yaml").write_text(
         "provenance:\n  agent_git_name: tc-agent\n"
         "  agent_git_email: tc-agent@internal\n  human: tester\n",

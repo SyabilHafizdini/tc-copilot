@@ -192,7 +192,8 @@ def test_mutating_action_serialised_by_lock():
     """A mutating action must acquire the write lock; a read action must not.
     We assert the lock exists and the mutating set names the writers."""
     import actions
-    assert actions.MUTATING == {"assert", "card_revise", "card_discard", "session_revert", "export", "suite_compile", "flow_draft"}
+    assert actions.MUTATING == {"assert", "card_revise", "card_discard", "session_revert",
+                                "export", "suite_compile", "tc_edit", "flow_draft"}
     assert hasattr(server, "_write_lock")
 
 
@@ -323,6 +324,151 @@ def test_suite_compile_action_wiring_refuses_bad_name_with_400():
                     json={"params": {"name": "BAD NAME"}}, headers=GOOD)
     assert r.status_code == 400, r.text
     assert "suite name" in r.json().get("error", ""), r.json()
+
+
+def test_testcases_endpoint_returns_rows_and_groups():
+    r = CLIENT.get("/api/testcases")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert set(body) == {"rows", "groups"}, sorted(body)
+    assert isinstance(body["rows"], list) and isinstance(body["groups"], list)
+
+
+def test_testcases_endpoint_rejects_spoofed_host():
+    r = CLIENT.get("/api/testcases", headers={"Host": "evil.example"})
+    assert r.status_code == 403, r.text
+
+
+def test_testcases_endpoint_500s_instead_of_crashing_the_worker():
+    original = server.testcase_models.testcases
+
+    def boom():
+        raise SystemExit("spec unreadable")
+
+    server.testcase_models.testcases = boom
+    try:
+        r = CLIENT.get("/api/testcases")
+        assert r.status_code == 500 and "error" in r.json(), r.text
+    finally:
+        server.testcase_models.testcases = original
+
+
+def test_tc_edit_action_refuses_a_non_editable_field_with_400():
+    """The allowlist is the boundary: nothing spawns and no file is written."""
+    r = CLIENT.post("/api/action/tc_edit",
+                    json={"params": {"id": "1.1-AC02-01", "field": "confidence",
+                                     "text": "High"}}, headers=GOOD)
+    assert r.status_code == 400, r.text
+    assert "field not editable" in r.json()["error"], r.json()
+
+
+def test_tc_edit_action_needs_the_token():
+    r = CLIENT.post("/api/action/tc_edit",
+                    json={"params": {"id": "1.1-AC02-01", "field": "steps", "text": "x"}},
+                    headers={"Origin": "http://localhost"})
+    assert r.status_code == 403, r.text
+
+
+def _with_workbook_inventory(fn):
+    """Run fn() with the workbook model pointed at a temp inventory holding one
+    real workbook, one corrupt .xlsx, one .md, and a real workbook OUTSIDE the
+    inventory. Nothing is written under build/."""
+    import shutil
+    import tempfile
+    from openpyxl import Workbook
+    wm = server.workbook_model
+    tmp = Path(tempfile.mkdtemp(prefix="wbv-srv-"))
+    saved = wm.INVENTORY_DIR
+    wm.INVENTORY_DIR = tmp / "inventory"
+    wm._CACHE.clear()
+    try:
+        sit = wm.INVENTORY_DIR / "sit"
+        sit.mkdir(parents=True)
+        wb = Workbook()
+        wb.active.title = "S"
+        wb.active["A1"] = "hello"
+        wb.save(sit / "US-PLANTEST-wbv-latest.xlsx")
+        (sit / "broken-latest.xlsx").write_bytes(b"PK\x03\x04 nope")
+        (sit / "notes.md").write_text("x", encoding="utf-8")
+        shutil.copyfile(sit / "US-PLANTEST-wbv-latest.xlsx", tmp / "outside.xlsx")
+        return fn()
+    finally:
+        wm.INVENTORY_DIR = saved
+        wm._CACHE.clear()
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_workbook_endpoint_returns_the_read_model():
+    def check():
+        r = CLIENT.get("/api/workbook/sit/US-PLANTEST-wbv-latest.xlsx")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        for key in ("name", "file", "kind", "compiled_at", "source", "freshness",
+                    "changed_count", "versions", "sheets", "links"):
+            assert key in body, sorted(body)
+        assert body["name"] == "US-PLANTEST-wbv" and body["kind"] == "sit", body["name"]
+        assert body["freshness"] == "unknown" and body["sheets"][0]["name"] == "S"
+        assert body["sheets"][0]["rows"][0]["cells"][0]["runs"] == \
+            [{"text": "hello", "bold": False}], body["sheets"][0]["rows"][0]
+    _with_workbook_inventory(check)
+
+
+def test_workbook_endpoint_404s_missing_non_xlsx_and_traversal():
+    """Same rule as /api/download: only an existing .xlsx under the inventory."""
+    def check():
+        for bad in ("sit/missing-latest.xlsx", "sit/notes.md",
+                    "sit/..%2f..%2foutside.xlsx", "../outside.xlsx",
+                    "%2e%2e/outside.xlsx", "sit/../../outside.xlsx"):
+            r = CLIENT.get(f"/api/workbook/{bad}")
+            assert r.status_code == 404, (bad, r.status_code, r.text[:80])
+    _with_workbook_inventory(check)
+
+
+def test_workbook_endpoint_422s_an_unreadable_file():
+    def check():
+        r = CLIENT.get("/api/workbook/sit/broken-latest.xlsx")
+        assert r.status_code == 422, r.text
+        assert "cannot read broken-latest.xlsx" in r.json()["error"], r.json()
+    _with_workbook_inventory(check)
+
+
+def test_workbook_endpoint_rejects_spoofed_host():
+    r = CLIENT.get("/api/workbook/sit/anything-latest.xlsx",
+                   headers={"Host": "evil.example"})
+    assert r.status_code == 403, r.text
+
+
+def test_workbook_endpoint_500s_on_unexpected_exception():
+    original = server.workbook_model.workbook
+
+    def boom(kind, file):
+        raise RuntimeError("boom")
+
+    server.workbook_model.workbook = boom
+    try:
+        r = CLIENT.get("/api/workbook/sit/x-latest.xlsx")
+        assert r.status_code == 500, r.text
+        assert "boom" in r.text, r.text
+    finally:
+        server.workbook_model.workbook = original
+
+
+def test_workbooks_endpoint_lists_the_inventory():
+    def check():
+        r = CLIENT.get("/api/workbooks")
+        assert r.status_code == 200, r.text
+        names = [w["name"] for w in r.json()["workbooks"]]
+        assert names == ["US-PLANTEST-wbv"], names      # the corrupt file is skipped
+        w = r.json()["workbooks"][0]
+        for key in ("name", "file", "kind", "compiled_at", "source", "freshness",
+                    "changed_count", "versions", "tcs"):
+            assert key in w, sorted(w)
+    _with_workbook_inventory(check)
+
+
+def test_workbooks_endpoint_rejects_spoofed_host():
+    r = CLIENT.get("/api/workbooks", headers={"Host": "evil.example"})
+    assert r.status_code == 403, r.text
 
 
 if __name__ == "__main__":

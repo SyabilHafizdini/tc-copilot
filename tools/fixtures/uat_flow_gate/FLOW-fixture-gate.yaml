@@ -1,0 +1,19 @@
+flow: /flows/FLOW-fixture-gate.md
+module: /modules/fixture.md
+out: testcases/uat
+story_num: "0.0"
+scenario_id: "SC-UAT-FIXTURE-{jid}"
+generator_version: "1.0.0"
+profiles:
+  fixture: The fixture data set.
+entries:
+  J01:
+    area: Fixture
+    profile: fixture
+    priority: P1
+    title: Fixture entry
+    objective: Fixture entry used only to prove the coverage fence.
+    steps: |-
+      1. Do the fixture step.
+    expected: 1. The fixture result is shown.
+    confidence: {scenario: High, steps: High, data: High, expected: High}

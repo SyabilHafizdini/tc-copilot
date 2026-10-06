@@ -116,16 +116,15 @@ def test_parse_prd_refuses_a_docx_with_no_headings():
 
 
 def _prd_root(blocks, name="spec.docx"):
-    """A throwaway repo root holding `blocks` as inputs/prd/v1/<name> and an
+    """A throwaway repo root holding `blocks` as inputs/prd/rental/v1/<name> and an
     empty manifest, so ingest-prd can be driven through the real CLI."""
     import json
     src = _doc(blocks)                     # rebuilds TMP
-    dest = TMP / "inputs/prd/v1" / name
+    dest = TMP / "inputs/prd/rental/v1" / name
     dest.parent.mkdir(parents=True, exist_ok=True)
     src.replace(dest)
     (TMP / "manifest.json").write_text(
-        json.dumps({"schema_version": 1, "adopted_prd_version": None,
-                    "staged_prd_version": None, "id_config_frozen": False,
+        json.dumps({"schema_version": 2, "prds": {}, "id_config_frozen": False,
                     "counters": {}, "sources": {}, "concepts": {},
                     "bindings": {}, "tc_hashes": {}, "edges": []}),
         encoding="utf-8", newline="\n")
@@ -151,16 +150,16 @@ def test_ingest_refuses_two_sections_whose_heading_paths_collide():
                       ("h", 2, "Configurations"), ("p", "first config body"),
                       ("h", 2, "Windows Task Scheduler"), ("p", "sched body"),
                       ("h", 2, "Configurations"), ("p", "second config body")])
-    docx = root / "inputs/prd/v1/spec.docx"
+    docx = root / "inputs/prd/rental/v1/spec.docx"
     slugs = [s["slug"] for s in chunk_sections(extract_docx_stream(docx))]
     assert slugs.count("file-validator--configurations") == 2, slugs
-    r = _cli(root, "ingest-prd")
+    r = _cli(root, "ingest-prd", "--prd", "rental", "--title", "RENTAL")
     out = r.stdout + r.stderr
     assert r.returncode != 0, out
     assert "file-validator--configurations" in out, out
     assert "1.1 Configurations" in out, out
     assert "1.3 Configurations" in out, out
-    prd_dir = root / "sources/prd"
+    prd_dir = root / "sources/prd/rental"
     assert not prd_dir.exists() or not list(prd_dir.glob("*.md")), \
         sorted(prd_dir.rglob("*"))
 
@@ -172,13 +171,13 @@ def test_a_slug_collision_writes_nothing_at_all():
                       ("h", 1, "File Validator"),
                       ("h", 2, "Configurations"), ("p", "a"),
                       ("h", 2, "Configurations"), ("p", "b")])
-    assert _cli(root, "ingest-prd").returncode != 0
-    prd_dir = root / "sources/prd"
+    assert _cli(root, "ingest-prd", "--prd", "rental", "--title", "RENTAL").returncode != 0
+    prd_dir = root / "sources/prd/rental"
     assert not prd_dir.exists() or not list(prd_dir.glob("*.md")), \
         sorted(prd_dir.rglob("*"))
     m = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
     assert m["sources"] == {}, m["sources"]
-    assert m["adopted_prd_version"] is None, m
+    assert m["prds"] == {}, m
 
 
 def test_write_prd_sections_refuses_a_numeric_collision_too():
@@ -202,7 +201,7 @@ def test_write_prd_sections_refuses_a_numeric_collision_too():
     real_root = wiki.ROOT
     wiki.ROOT = TMP
     try:
-        wiki.write_prd_sections(secs, 1, "/inputs/prd/v1/x.pdf", manifest)
+        wiki.write_prd_sections(secs, 1, "/inputs/prd/rental/v1/x.pdf", manifest, "rental")
     except SystemExit as e:
         assert "3-1" in str(e), str(e)
         assert "3.1 Ordering" in str(e), str(e)
@@ -219,13 +218,13 @@ def test_distinct_heading_paths_still_ingest():
                       ("h", 2, "Configurations"), ("p", "a"),
                       ("h", 1, "File Summary"),
                       ("h", 2, "Configurations"), ("p", "b")])
-    r = _cli(root, "ingest-prd")
+    r = _cli(root, "ingest-prd", "--prd", "rental", "--title", "RENTAL")
     out = r.stdout + r.stderr
     assert r.returncode == 0, out
-    assert (root / "sources/prd/file-validator--configurations.md").exists(), \
-        sorted((root / "sources/prd").glob("*"))
-    assert (root / "sources/prd/file-summary--configurations.md").exists(), \
-        sorted((root / "sources/prd").glob("*"))
+    assert (root / "sources/prd/rental/file-validator--configurations.md").exists(), \
+        sorted((root / "sources/prd/rental").glob("*"))
+    assert (root / "sources/prd/rental/file-summary--configurations.md").exists(), \
+        sorted((root / "sources/prd/rental").glob("*"))
 
 
 def test_md_and_numeric_chunking_is_unchanged():

@@ -25,7 +25,7 @@ vi.mock('../shell/routes', () => ({ hrefFor: (v: { kind: string }) => `#/${v.kin
 import { DocumentsPage } from './DocumentsPage'
 
 const state = {
-  project: 'p', prd: { adopted: '0.3', staged: '0.4' },
+  schema1: false, notice: null, project: 'p', prds: [{ id: 'rental-application', title: 'Rental application', adopted: 3, staged: 4 }],
   stories: [
     { id: 'US-VHLD', status: 'draft' },
     { id: 'US-ALGN', status: 'aligned' },
@@ -40,8 +40,8 @@ beforeEach(() => { vi.clearAllMocks() })
 describe('DocumentsPage', () => {
   it('shows the adopted + staged PRD chips and the stage-not-overwrite rule', () => {
     render(<DocumentsPage state={state} />)
-    expect(screen.getByText(/v0\.3 adopted/)).toBeInTheDocument()
-    expect(screen.getByText(/v0\.4 staged/)).toBeInTheDocument()
+    expect(screen.getByText(/rental-application v3 adopted/)).toBeInTheDocument()
+    expect(screen.getByText(/rental-application v4 staged/)).toBeInTheDocument()
     expect(screen.getByText(/never overwrite/i)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Maintain . Changes/i }))
       .toHaveAttribute('href', '#/changes')

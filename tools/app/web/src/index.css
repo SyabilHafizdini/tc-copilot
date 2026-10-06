@@ -74,11 +74,17 @@ body {
 }
 .app-body {
   display: grid; grid-template-columns: 240px minmax(0, 1fr) var(--chat-w, 322px);
+  /* One row, exactly as tall as the space under the top bar. Without it the
+     row grows to its tallest content and the document scrolls instead of the
+     page (the Workbook view then lost its frozen header and its tab bar). */
+  grid-template-rows: minmax(0, 1fr);
   flex: 1; min-height: 0;
 }
+/* chat switched Off in Settings: no chat column is rendered, so drop its track */
+.app-body.no-chat { grid-template-columns: 240px minmax(0, 1fr); }
 .chatcol { position: relative; background: var(--color-panel); border-left: 1px solid var(--color-border); display: flex; flex-direction: column; min-width: 0; }
 .chatcol.collapsed { overflow: hidden; border-left: none; }
-.main { display: flex; flex-direction: column; min-width: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .navcol { background: var(--color-panel); border-right: 1px solid var(--color-border); display: flex; flex-direction: column; padding: 12px 8px; overflow-y: auto; }
 .page { padding: 24px 32px; overflow: auto; flex: 1; }
 
@@ -284,6 +290,7 @@ td .btn { padding: 5px 12px; }
   position: relative; font-size: .8125rem; line-height: 22px; cursor: pointer;
   padding-right: 8px; white-space: nowrap;
 }
+.tree-sub { margin: 8px 0 2px; padding: 0 12px; font-size: .72rem; }
 .tree-item:hover { background: var(--color-hover); }
 .tree-item:focus-visible { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .tree-item.selected { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
@@ -454,7 +461,8 @@ td .btn { padding: 5px 12px; }
 
 @media (max-width: 820px) {
   .app { height: auto; }
-  .app-body { grid-template-columns: 1fr; } .chatcol { display: none; }
+  /* Stacked: the nav sits above the page and the document scrolls again. */
+  .app-body, .app-body.no-chat { grid-template-columns: 1fr; } .app-body { grid-template-rows: none; } .chatcol { display: none; }
   .navcol { border-right: none; border-bottom: 1px solid var(--color-border); }
   .strip { grid-template-columns: repeat(2, 1fr); }
   .explorer-panes { grid-template-columns: 1fr; }
@@ -786,3 +794,129 @@ a.kban-card:hover .card { box-shadow: 0 3px 8px rgba(9, 30, 66, .2); }
 .suite-row:last-child, .inventory-row:last-child { border-bottom: none; }
 .suite-row > span:first-child,
 .inventory-row > span:not(.pill) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ============================ test case review (grid + panel) ============================ */
+.tc-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.tc-filters select { font: inherit; font-size: .78rem; padding: 4px 8px; border-radius: var(--radius-ctl); border: 1px solid var(--color-border); background: var(--color-panel); color: var(--color-text); max-width: 240px; }
+.tc-count { margin-left: auto; font-size: .78rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.tc-split { display: flex; gap: 14px; align-items: flex-start; }
+.tc-grid-card { --tc-head-h: 33px; --tc-group-h: 30px; flex: 1; min-width: 0; overflow: auto; max-height: calc(100vh - 210px); }
+.tc-tab .tc-grid-card, .tc-tab .tc-panel { max-height: 70vh; }
+.tc-grid { table-layout: fixed; min-width: 1180px; font-size: .78rem; }
+/* One line, always: the sticky group row sits at --tc-head-h below the top. */
+.tc-grid th { position: sticky; top: 0; z-index: 2; background: var(--color-elev); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--color-border); font-size: .74rem; font-weight: 600; color: var(--color-muted); white-space: nowrap; }
+.tc-grid th:nth-child(1) { width: 136px; }
+.tc-grid th:nth-child(6) { width: 112px; }
+.tc-grid td { padding: 8px 10px; vertical-align: top; border-bottom: 1px solid var(--color-hair); }
+/* The ID column stays put when the grid scrolls sideways (the panel leaves
+   room for about half the columns), so a row can always be told from the next. */
+.tc-grid th:first-child { left: 0; z-index: 3; }
+.tc-grid td.tc-id { position: sticky; left: 0; z-index: 1; background: var(--color-panel); box-shadow: inset -1px 0 0 var(--color-hair); }
+.tc-row:hover td.tc-id { background: var(--color-hover); }
+.tc-row.selected td.tc-id { background: color-mix(in srgb, var(--color-accent) 10%, var(--color-panel)); box-shadow: inset 3px 0 0 var(--color-accent), inset -1px 0 0 var(--color-hair); }
+.tc-band { position: sticky; left: 10px; display: inline-block; }
+.tc-cell { max-height: 11.6em; overflow: hidden; line-height: 1.45; }
+/* More text than the eight lines shown: the last lines fade out, so the cut
+   reads as a cut. The class is set by measurement (TestCaseGrid Cell). */
+.tc-cell.clipped {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2.9em), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.9em), transparent);
+}
+.rich-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.tc-row { cursor: pointer; scroll-margin-top: calc(var(--tc-head-h) + var(--tc-group-h)); }
+.tc-row:hover { background: var(--color-hover); }
+.tc-row.selected { background: color-mix(in srgb, var(--color-accent) 10%, transparent); box-shadow: inset 3px 0 0 var(--color-accent); }
+.tc-row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.tc-id .id { display: block; font-family: var(--mono); font-size: .72rem; white-space: normal; overflow-wrap: anywhere; }
+.tc-id .pill { margin-top: 4px; }
+.tc-group-row td { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-panel)); font-weight: 650; font-size: .8rem; position: sticky; top: var(--tc-head-h); z-index: 2; }
+.tc-common-row td { background: var(--color-subtle); padding: 4px 10px; font-size: .76rem; }
+.tc-common-toggle { padding: 2px 8px; font-size: .72rem; }
+.tc-common { margin-top: 6px; line-height: 1.45; }
+.tc-common .rich-text { display: block; }
+.tc-section-row td { background: var(--color-subtle); font-weight: 600; font-size: .74rem; color: var(--color-muted); padding: 5px 10px; }
+.conf-tag { display: inline-block; font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-ctl); }
+.conf-tag.high { color: var(--color-ready); background: color-mix(in srgb, var(--color-ready) 16%, transparent); }
+.conf-tag.medium { color: var(--color-attn); background: color-mix(in srgb, var(--color-attn) 18%, transparent); }
+.conf-tag.low { color: var(--color-blocked); background: color-mix(in srgb, var(--color-blocked) 16%, transparent); }
+
+.tc-panel { flex: none; width: 460px; max-height: calc(100vh - 210px); overflow: auto; background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius); padding: 0 16px 14px; font-size: .82rem; }
+.tc-panel-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; padding: 12px 0 10px; background: var(--color-panel); border-bottom: 1px solid var(--color-hair); }
+.tc-panel-head .id { font-family: var(--mono); font-weight: 650; }
+.tc-panel-nav { margin-left: auto; display: flex; gap: 2px; }
+.tc-part { padding: 12px 0; border-bottom: 1px solid var(--color-hair); }
+.tc-part-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+.tc-part-head h3 { margin: 0; font-size: .86rem; font-weight: 650; }
+.tc-remark { flex-basis: 100%; margin: 0; font-size: .76rem; color: var(--color-muted); line-height: 1.45; }
+.tc-field { margin-bottom: 10px; }
+.tc-field-head { display: flex; align-items: center; justify-content: space-between; min-height: 26px; }
+.tc-field-label { font-size: .72rem; font-weight: 600; color: var(--color-muted); }
+.tc-field-head .btn { padding: 2px 8px; font-size: .72rem; }
+.tc-field-text { line-height: 1.5; }
+.tc-none { color: var(--color-dim); font-style: italic; }
+.tc-field.readonly { background: var(--color-subtle); border-radius: var(--radius); padding: 6px 10px 8px; color: var(--color-muted); }
+.tc-where { margin: 6px 0 0; font-size: .72rem; color: var(--color-dim); }
+.tc-field-edit textarea, .tc-field-edit select { width: 100%; font: inherit; font-size: .8rem; line-height: 1.5; padding: 8px 10px; border-radius: var(--radius-ctl); border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text); }
+.tc-field-edit textarea { resize: vertical; font-family: var(--mono); font-size: .76rem; }
+.tc-field-edit select { width: auto; }
+.tc-field-actions { display: flex; gap: 8px; margin-top: 6px; }
+.tc-edit-note { margin: 0 0 6px; padding: 6px 10px; border-radius: var(--radius); font-size: .74rem; color: var(--color-attn); background: color-mix(in srgb, var(--color-attn) 12%, transparent); }
+.tc-refusal { margin: 8px 0 0; padding: 8px 10px; border-radius: var(--radius); font-family: var(--mono); font-size: .72rem; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--color-blocked); background: color-mix(in srgb, var(--color-blocked) 10%, transparent); border: 1px solid color-mix(in srgb, var(--color-blocked) 30%, transparent); }
+.tc-meta { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 4px 0 0; font-size: .78rem; }
+.tc-meta dt { color: var(--color-muted); }
+.tc-meta dd { margin: 0; }
+.tc-panel-links { display: flex; flex-wrap: wrap; gap: 14px; padding-top: 12px; font-size: .78rem; }
+.tc-link-inert { color: var(--color-dim); cursor: not-allowed; }
+@media (max-width: 900px) {
+  .tc-split { flex-direction: column; align-items: stretch; }
+  /* Stacked, the card is as wide as the page and scrolls inside itself; left
+     to its content it would be as wide as the table and push the page out. */
+  .tc-grid-card { flex: none; width: 100%; }
+  .tc-panel, .tc-tab .tc-panel { width: auto; max-height: none; }
+}
+
+/* ============================ Workbook view ============================ */
+/* The sheet is drawn as paper - white, black text - in both themes, because
+   its fills are the file's own fixed colours. Everything around it is themed. */
+.wb-page { display: flex; flex-direction: column; flex: 1; min-height: 0; padding: 16px 20px 0; }
+.wb-page .page-head { flex: none; margin: 0 0 10px; gap: 16px; flex-wrap: wrap; }
+.wb-picker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: .82rem; color: var(--color-muted); }
+.wb-picker select { font: inherit; font-size: .82rem; color: var(--color-text); background: var(--color-subtle); border: none; border-radius: var(--radius-ctl); padding: 5px 8px; cursor: pointer; max-width: 320px; }
+.wb-picker select:hover { background: var(--color-subtle-hover); }
+.wb-stale { flex: none; }
+.wb-stale .banner { margin-bottom: 10px; }
+.wb-stale .btn { margin-left: 6px; }
+.wb-refusal { margin: 0; font-family: var(--mono); font-size: .74rem; white-space: pre-wrap; }
+.wb-body { flex: 1; min-height: 0; display: flex; gap: 12px; }
+/* The review panel (or the "no longer in the wiki" notice) docks right of the sheet. */
+.wb-body > :not(.wb-scroll) { flex: none; width: min(460px, 45%); overflow: auto; }
+/* Docked, the panel is as tall as the sheet beside it and scrolls inside. */
+.wb-body > .tc-panel { max-height: none; }
+.wb-scroll { flex: 1; min-width: 0; overflow: auto; background: #fff; border: 1px solid var(--color-border); border-radius: var(--radius) var(--radius) 0 0; }
+.wb-sheet { border-collapse: collapse; table-layout: fixed; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; font-size: 13.33px; line-height: 1.25; }
+.wb-sheet thead { position: sticky; top: 0; z-index: 2; }
+/* The frozen band is opaque on its ROWS, not its cells: body rows must not show
+   through while scrolling, yet text that spills out of an unwrapped cell has to
+   stay visible over its empty neighbours. */
+.wb-sheet thead tr { background: #fff; }
+.wb-sheet thead tr:last-child td { box-shadow: inset 0 -2px 0 #9aa3af; }
+.wb-cell { padding: 2px 4px; border: 0; }
+.wb-cell.wb-b { border: 1px solid #000; }
+.wb-wrap { white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }
+.wb-nowrap { white-space: pre; overflow: visible; }
+/* Unwrapped text beside a cell that holds text: cut at the border, as Excel does. */
+.wb-nowrap.wb-clip { overflow: hidden; }
+.wb-skipped { margin: 4px 0 0; padding-left: 18px; font-size: .78rem; }
+.wb-formula { color: #8590a2; font-style: italic; }
+.wb-tc { cursor: pointer; }
+.wb-tc:focus-visible { outline: none; }
+.wb-tc:focus-visible td { outline: 2px solid #0052cc; outline-offset: -2px; }
+.wb-tc:hover td { background-image: linear-gradient(rgba(0, 82, 204, .07), rgba(0, 82, 204, .07)); }
+.wb-changed td:first-child { box-shadow: inset 4px 0 0 #c77700; }
+.wb-focus td { outline: 2px solid #0052cc; outline-offset: -2px; }
+.wb-id, .wb-link { color: #0052cc; text-decoration: none; }
+.wb-id:hover, .wb-link:hover { text-decoration: underline; }
+.wb-tabs { flex: none; display: flex; gap: 2px; overflow-x: auto; padding: 0 0 8px; border-top: 1px solid var(--color-border); background: var(--color-elev); }
+.wb-tab { font: inherit; font-size: .76rem; white-space: nowrap; padding: 6px 12px; border: none; border-radius: 0 0 var(--radius) var(--radius); background: transparent; color: var(--color-muted); cursor: pointer; }
+.wb-tab:hover { background: var(--color-subtle); color: var(--color-text); }
+.wb-tab[aria-selected="true"] { background: var(--color-panel); color: var(--color-text); font-weight: 650; box-shadow: inset 0 -2px 0 var(--color-accent); }

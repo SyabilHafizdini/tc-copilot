@@ -1,0 +1,29 @@
+story: /stories/US-FIXTURE-DOUBTS.md
+ac_prefix: US-FIXTURE-DOUBTS
+scenario_id: "SC-FIX-{ac_id}-{seq:02d}"
+test_cases:
+  - ac: AC1
+    seq: 1
+    title: Fixture title one
+    objective: Fixture objective one.
+    steps: "1. Open the page.\n2. Submit."
+    data: "Profile A"
+    pre_extra: "Mailbox X exists."
+    expected: "Page shows done."
+    confidence: {scenario: High, steps: Medium, data: Low, expected: High}
+    remarks: {steps: "Order assumed.", data: "Profile unconfirmed."}
+  - ac: HS-02
+    seq: 1
+    title: Fixture title two
+    objective: Fixture objective two.
+    steps: "1. Click."
+    expected: "Nothing happens."
+    confidence: {scenario: High, steps: High, data: High, expected: High}
+  - ac: AC2
+    seq: 2
+    title: Fixture title three
+    objective: Fixture objective three.
+    steps: "1. Wait."
+    expected: "Timeout shown."
+    confidence: {scenario: Medium, steps: High, data: High, expected: Low}
+    remarks: {scenario: "Wording guessed."}

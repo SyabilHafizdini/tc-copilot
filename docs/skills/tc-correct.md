@@ -11,7 +11,8 @@ of it can be wrong, so it is proposed and separately asserted.
 
 Not for first-contact alignment (`tc-align`), not for a new PRD version
 (`tc-change-report`), not for a test case that should simply go away
-(`tc-lifecycle`).
+(`tc-lifecycle`), not for answering one of the AI's doubt questions, even in
+chat (`tc-resolve`).
 
 ## How it runs
 

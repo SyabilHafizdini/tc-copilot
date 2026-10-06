@@ -7,8 +7,8 @@ import { FrontmatterFields } from '../explorer/FrontmatterFields'
 import { MarkdownBody } from '../explorer/MarkdownBody'
 import { docTypeMeta } from '../explore/docType'
 import { hrefFor } from '../shell/routes'
+import { confirmDiscard } from '../shell/unsaved'
 import { storyFromState, storyPhase, type StoryPhase } from './selectors'
-import { storyTestCases } from './testcases'
 import { PhaseStepper } from './PhaseStepper'
 import { ReadinessBox } from './ReadinessBox'
 import { TestCasesTab } from './TestCasesTab'
@@ -44,6 +44,8 @@ export function StoryPage({ id, state, result, onRun }: {
   // shows a skeleton until this flips, so tabs never sit silently empty.
   const [explorerLoading, setExplorerLoading] = useState(true)
   const [tab, setTab] = useState<Tab>('Overview')
+  // Leaving the Test Cases tab unmounts its grid and any editor open in it.
+  const pickTab = (t: Tab) => { if (t === tab || confirmDiscard()) setTab(t) }
   useEffect(() => {
     getExplorer()
       .then(setExplorer)
@@ -53,7 +55,6 @@ export function StoryPage({ id, state, result, onRun }: {
 
   const story = useMemo(() => storyFromState(state, id), [state, id])
   const doc = explorer?.docs[`stories/${id}`] ?? null
-  const tcRows = useMemo(() => (explorer ? storyTestCases(explorer, id) : []), [explorer, id])
 
   if (!story) return <div className="page"><Banner tone="blocked">Story {id} not found</Banner></div>
 
@@ -79,7 +80,7 @@ export function StoryPage({ id, state, result, onRun }: {
         <span className="id">{story.id}</span>
       </div>
 
-      <PhaseStepper phase={phase} onSelect={(p) => setTab(PHASE_TAB[p])} />
+      <PhaseStepper phase={phase} onSelect={(p) => pickTab(PHASE_TAB[p])} />
       <ReadinessBox story={story} onRun={onRun} onExport={(_action, params) => {
         // ReadinessBox's export action name ('export') is a CLI action, not a
         // download path -- runDownload's first arg is the artifact path under
@@ -93,7 +94,7 @@ export function StoryPage({ id, state, result, onRun }: {
         <main className="story-main">
           <div className="tabs">
             {TABS.map((t) => (
-              <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t}</button>
+              <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => pickTab(t)}>{t}</button>
             ))}
           </div>
 
@@ -112,7 +113,7 @@ export function StoryPage({ id, state, result, onRun }: {
                       onFocusItem={(itemId) => onNavigate(`stories/${id}#${itemId}`)} />
                   </Card>
                 )}
-                {tab === 'Test Cases' && <TestCasesTab rows={tcRows} />}
+                {tab === 'Test Cases' && <TestCasesTab storyId={id} />}
                 {tab === 'Coverage' && (
                   <Card><p className="state">{c.covered}/{c.total} covered · {c.gaps} gap(s) · {c.acs_without_tcs} without active TCs</p></Card>
                 )}

@@ -88,7 +88,7 @@ describe('layoutFlow', () => {
     journey: [
       { id: 'J01', end_state: 'one', note: null, ac_ref: 'US-T#AC-1', branch: null },
       { id: 'J02', end_state: 'two', note: null, ac_ref: 'US-T#AC-2', source_tc: '1.1-AC02-01',
-        branch: { id: 'B01', title: 'Foreigner' } },
+        branch: { id: 'B01', title: 'Guest' } },
       { id: 'J03', end_state: 'three', note: null, ac_ref: 'US-T#AC-3', branch: null },
     ],
   }
@@ -97,7 +97,7 @@ describe('layoutFlow', () => {
     const r = computeJourney(g.nodes, g.edges, { id: 'FLOW-X', title: 'x', entry: '' }, g.branchTitles)
     expect(r.errors).toEqual([])
     expect(r.journey.map((j) => [j.end_state, j.branch])).toEqual([['one', null], ['two', 'B01'], ['three', null]])
-    expect(r.branches[0].title).toBe('Foreigner')
+    expect(r.branches[0].title).toBe('Guest')
     expect(r.journey.map((j) => j.source_tc)).toEqual([null, '1.1-AC02-01', null])
   })
   it('tidy lines steps up in journey order with branches below', () => {

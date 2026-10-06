@@ -156,6 +156,12 @@ def _letter(i):
     return s
 
 
+# The sentence that opens the element-verification item both renderers append
+# to Expected Results. One constant: the renderers write it and
+# wiki_suite.split_expected finds the block again by it.
+ELEMENT_BLOCK_LEAD = "The following elements are displayed and labelled correctly:"
+
+
 def element_verification_block_multi(story_fm, ac_ids, indent="    "):
     """Org-style lettered element list for the UNION of the components mapped to
     every AC in ac_ids (coverage_map order within each AC, ac_ids order across

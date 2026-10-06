@@ -1,35 +1,39 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen, fireEvent, within } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
 import { TestCasesTab } from './TestCasesTab'
-import type { TcRow } from './testcases'
+import { PAYLOAD } from '../testcases/fixtures'
 
-const ROWS: TcRow[] = [
-  { id: 'SIT-1', title: 'Change filter', level: 'sit', status: 'active', ac: 'AC8',
-    steps: [{ n: 1, action: 'Add Workshop Y', data: 'Workshop=Y', expected: 'Widgets refresh' }] },
-  { id: 'UAT-1', title: 'Access dashboard', level: 'uat', status: 'active', ac: 'AC1',
-    steps: [{ n: 1, action: 'Log in', data: '', expected: 'Dashboard shown' }] },
-]
+vi.mock('../api', async () => {
+  const actual = await vi.importActual<typeof import('../api')>('../api')
+  return { ...actual, getTestCases: vi.fn(), onChange: vi.fn(() => () => {}) }
+})
+import * as api from '../api'
 
 describe('TestCasesTab', () => {
-  it('renders the step table columns and step content', () => {
-    const { container } = render(<TestCasesTab rows={ROWS} />)
-    const firstCard = container.querySelector('.card') as HTMLElement
-    expect(within(firstCard).getByText('Action')).toBeInTheDocument()
-    expect(within(firstCard).getByText('Test data')).toBeInTheDocument()
-    expect(within(firstCard).getByText('Expected result')).toBeInTheDocument()
-    expect(screen.getByText('Add Workshop Y')).toBeInTheDocument()
+  beforeEach(() => { vi.mocked(api.getTestCases).mockReset() })
+
+  it('renders the review grid locked to the story', async () => {
+    vi.mocked(api.getTestCases).mockResolvedValue(PAYLOAD)
+    render(<TestCasesTab storyId="US-DEMO-002" />)
+    expect(await screen.findByText('1 of 1 test cases')).toBeInTheDocument()
+    expect(screen.getByRole('cell', { name: /Run: Variant flow/ })).toBeInTheDocument()
+    expect(screen.queryByRole('cell', { name: /Run: Main flow/ })).toBeNull()
+    expect(screen.queryByRole('combobox', { name: 'Story' })).toBeNull()
   })
 
-  it('the level sub-filter narrows to a single level', () => {
-    render(<TestCasesTab rows={ROWS} />)
-    fireEvent.click(screen.getByRole('button', { name: 'UAT' }))
-    expect(screen.getByText('Access dashboard')).toBeInTheDocument()
-    expect(screen.queryByText('Change filter')).not.toBeInTheDocument()
+  it('shows a skeleton while loading and the error when the read fails', async () => {
+    vi.mocked(api.getTestCases).mockRejectedValue(new Error('GET /api/testcases -> 500'))
+    render(<TestCasesTab storyId="US-DEMO-001" />)
+    expect(screen.getByRole('status', { name: 'Loading' })).toBeInTheDocument()
+    expect(await screen.findByText(/api\/testcases -> 500/)).toBeInTheDocument()
   })
 
-  it('shows an empty state for a level with no test cases', () => {
-    render(<TestCasesTab rows={ROWS} />)
-    fireEvent.click(screen.getByRole('button', { name: 'OSAT' }))
-    expect(screen.getByText(/No test cases at this level/)).toBeInTheDocument()
+  it('subscribes to change events so a saved edit reloads the grid', async () => {
+    vi.mocked(api.getTestCases).mockResolvedValue(PAYLOAD)
+    render(<TestCasesTab storyId="US-DEMO-001" />)
+    await screen.findByText('4 of 4 test cases')
+    const reload = vi.mocked(api.onChange).mock.calls.at(-1)![0]
+    await act(async () => { reload() })
+    expect(api.getTestCases).toHaveBeenCalledTimes(2)
   })
 })

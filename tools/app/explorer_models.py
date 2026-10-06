@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 
-from wiki import resolve_ref, load_all
+from wiki import load_all, prd_id_of_ref, resolve_ref
 from wiki_dashboard import collect
 from wiki_graph import build_model
 
@@ -109,7 +109,8 @@ def explorer():
             "facets": doc_facets(rel, fm, story_index),
         }
         groups.setdefault(kind, []).append(
-            {"ref": rel, "title": fm.get("title"), "status": fm.get("status")})
+            {"ref": rel, "title": fm.get("title"), "status": fm.get("status"),
+             "prd": prd_id_of_ref(rel)})
 
     tree = [{"kind": k, "label": k.replace("_", " ").title(),
              "count": len(items), "items": sorted(items, key=lambda i: i["ref"])}

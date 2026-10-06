@@ -13,8 +13,8 @@ function Seed({ n }: { n: number }) {
   )
 }
 
-function Harness({ n }: { n: number }) {
-  return <SelectionProvider><Seed n={n} /><SelectionBar /></SelectionProvider>
+function Harness({ n, chatEnabled }: { n: number; chatEnabled?: boolean }) {
+  return <SelectionProvider chatEnabled={chatEnabled}><Seed n={n} /><SelectionBar /></SelectionProvider>
 }
 
 describe('SelectionBar', () => {
@@ -35,6 +35,14 @@ describe('SelectionBar', () => {
     render(<Harness n={2} />)
     fireEvent.click(screen.getByText('seed'))
     fireEvent.click(screen.getByRole('button', { name: /clear/i }))
+    expect(screen.queryByRole('button', { name: /ask in chat/i })).toBeNull()
+  })
+
+  it('renders nothing when chat is disabled, even with items selected', () => {
+    render(<Harness n={2} chatEnabled={false} />)
+    fireEvent.click(screen.getByText('seed'))
+    expect(screen.queryByRole('region', { name: 'Selection' })).toBeNull()
+    expect(screen.queryByText(/selected/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /ask in chat/i })).toBeNull()
   })
 })

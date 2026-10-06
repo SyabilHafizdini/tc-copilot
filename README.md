@@ -25,9 +25,10 @@ grading improved.
 py -m pip install -r requirements.txt
 ```
 
-**2. Put your documents in the folder.** Copy your PRD (pdf, docx or md),
-your Figma screen exports (png) and any decks (pptx) into `PUT_FILES_HERE/`.
-Any order, any names.
+**2. Put your documents in the folder.** Copy your PRD or PRDs (pdf, docx or
+md; each gets an id and a title when it is first ingested), your Figma screen
+exports (png) and any decks (pptx) into `PUT_FILES_HERE/`. Any order, any
+names.
 
 **3. Run the skill.** Open OpenCode or Claude Code in the project folder and
 type:
@@ -51,8 +52,25 @@ are.
 - **Generation.** You confirm one coverage card per story. The draft workbook
   arrives right after. The agent then grades and improves the set while you
   review the draft, and hands you the final workbook with its change log.
+- **The AI's doubts.** Every part of a test case the AI rated Medium or Low
+  is a doubt. The agent groups them into questions you answer on a card; only
+  your answer raises a part to High (`tc-resolve`).
 - **Changes later.** Corrections, new PRD versions and retirements all go
   through the same cards. Nothing regenerates until you say so.
+
+## The operator app
+
+`py tools/wiki.py app` opens a local browser app over the same files (it needs
+`py -m pip install -r tools/app/requirements.txt`). On the Test Cases page you
+review every test case in the workbook's columns and reword one field
+yourself; Save runs `wiki tc edit` under your name. The Workbook page opens a
+compiled workbook as testers receive it, with the rows that changed since the
+compile marked. The docked chat is Off by default; switch it on under
+Settings.
+
+A project written before the PRD registry is converted once with
+`py tools/wiki.py migrate-prds`, at your instruction. All of this is in the
+[command reference](docs/cli.md).
 
 ## Read more
 
@@ -66,5 +84,7 @@ are.
 
 - Only you can assert. The agent proposes; a card records your answer.
 - Nothing generates from a story you have not asserted.
+- The agent never raises a confidence level. The renderers refuse a raised
+  level; only your answer, recorded by `wiki doubts answer`, lifts one.
 - Generated files are never edited by hand. Change the source and re-render.
 - Every change is a git commit, so the history is the audit trail.

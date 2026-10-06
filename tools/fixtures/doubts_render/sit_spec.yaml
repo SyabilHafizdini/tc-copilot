@@ -1,0 +1,68 @@
+story: /stories/US-LIFT-FIX.md
+module: /modules/lift-fixture.md
+figma: null
+out: testcases/sit/lift-fixture
+ac_prefix: '9.9'
+scenario_id: "SC-LIFT-{ac_id}-{seq:02d}"
+generator_version: 1.0.0
+pre_common: "1. Fixture environment."
+post_default: Nothing changed.
+entry_state: home
+states:
+  home: "Home page."
+  done: "Done page."
+profiles:
+  p1: "Profile one."
+test_cases:
+  - ac: HS-01
+    seq: 1
+    technique: UC
+    priority: P1
+    area: Area
+    title: Lift title one
+    objective: Lift objective one.
+    steps: "1. Open the page.\n2. Submit."
+    data: "Profile A"
+    pre_extra: "Mailbox X exists."
+    expected: "Page shows done."
+    section: Main
+    continue_from: start
+    run: Main
+    starts_at: home
+    ends_at: done
+    profile: p1
+    confidence: {scenario: High, steps: Medium, data: Low, expected: High}
+    remarks: {steps: "Order assumed.", data: "Profile unconfirmed."}
+  - ac: HS-02
+    seq: 1
+    technique: UC
+    priority: P2
+    area: Area
+    title: Lift title two
+    objective: Lift objective two.
+    steps: "1. Click."
+    expected: "Nothing happens."
+    section: Main
+    continue_from: HS-01/1
+    run: Main
+    starts_at: done
+    ends_at: done
+    profile: p1
+    confidence: {scenario: High, steps: High, data: High, expected: High}
+  - ac: HS-02
+    seq: 2
+    technique: UC
+    priority: P2
+    area: Area
+    title: Lift title three
+    objective: Lift objective three.
+    steps: "1. Wait."
+    expected: "Timeout shown."
+    section: Main
+    continue_from: HS-02/1
+    run: Main
+    starts_at: done
+    ends_at: done
+    profile: p1
+    confidence: {scenario: Medium, steps: High, data: High, expected: Low}
+    remarks: {scenario: "Wording guessed.", expected: "Timeout value guessed."}

@@ -20,8 +20,34 @@ py tools/wiki.py next
 ```
 
 Read-only. For every story and flow: its state, the literal next command,
-and the skill that owns it. Banners flag a staged PRD, an unanswered card,
+and the skill that owns it. Banners flag a staged PRD (one per PRD, naming it), an unanswered card,
 hand-edit drift, and files in `PUT_FILES_HERE/`.
+
+`py tools/wiki.py migrate-prds [--id <id> --title "<title>"]` is a one-time,
+one-way conversion of a project written before the PRD registry. The agent
+proposes it, asks you for the PRD id and title (permanent, never inferred from
+a file name), and runs it only at your explicit instruction. Its refusals are
+fixed upstream, never bypassed.
+
+On a schema-1 project every command except `migrate-prds`, `status` and `lint`
+refuses and names `migrate-prds`; so do `render_sit.py` and `render_uat.py`.
+`status` says the manifest is schema 1 and `lint` warns W10. `tc edit` makes the
+refusal itself, after it has consumed its text file and before it writes
+anything. `app` still opens (its views only read) and shows a migration notice
+on every page; every action it runs is refused the same way.
+`eval_rubric.py --apply-patch` refuses too (scoring does not).
+
+`py tools/wiki.py tc edit <id> --field <field> --from <path> --by <you>` is
+human-gated too. It is your own edit of one field of one test case: the agent
+runs it from the command line only when you dictate the exact text and tell it
+to save that text under your name; the `--from` file holds your words
+verbatim. The agent never uses it for wording it composed: it rewords in the
+spec and re-renders under its own commit (`tc-style`). The command edits the
+spec, never a `testcases/` file, and never a confidence level or remark. It
+refuses `--allow-lint-errors` and a `--by` that is empty, multi-line or a
+flag. Rewording a part you had confirmed returns that part to its authored
+level on the render, and the output, the log and the commit say so. In the
+operator app it is the Save button of the review panel on the Test Cases page.
 
 ## Smoke
 
@@ -61,7 +87,7 @@ Refusals are correct behaviour. Never route around one.
 
 | Path | Contents |
 |---|---|
-| `sources/prd/*.md` | Verbatim PRD sections |
+| `sources/prd/<prd-id>/*.md` | Verbatim PRD sections, one directory per PRD |
 | `stories/*.md` | ACs, rules, components, coverage map, test model as frontmatter |
 | `tools/sit_specs/*.yaml` | SIT test-case content |
 | `testcases/sit/`, `testcases/uat/` | Rendered test cases |
@@ -91,4 +117,5 @@ The full command list is in [docs/cli.md](../cli.md).
 - SIT bindings carry no coverage-map pins, so a coverage-map edit does not
   stale SIT test cases. Re-render with `--force` after re-confirming.
 - Deck ingestion is verified against a synthetic fixture only.
-- docx PRD input is not implemented; pdf and md are.
+- PRD input is pdf, docx or md. A docx needs `python-docx` and Word heading
+  styles on its section titles; one with no headings is refused.

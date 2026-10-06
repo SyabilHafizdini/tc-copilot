@@ -60,4 +60,17 @@ describe('useSelection', () => {
     act(() => result.current.toggle(a)) // must not throw
     expect(result.current.items).toEqual([])
   })
+
+  it('chatEnabled is true by default, under a provider and outside one', () => {
+    expect(renderHook(() => useSelection(), { wrapper: wrap }).result.current.chatEnabled).toBe(true)
+    expect(renderHook(() => useSelection()).result.current.chatEnabled).toBe(true)
+  })
+
+  it('a provider given chatEnabled={false} publishes it on the store', () => {
+    const off = ({ children }: { children: React.ReactNode }) => (
+      <SelectionProvider chatEnabled={false}>{children}</SelectionProvider>
+    )
+    const { result } = renderHook(() => useSelection(), { wrapper: off })
+    expect(result.current.chatEnabled).toBe(false)
+  })
 })

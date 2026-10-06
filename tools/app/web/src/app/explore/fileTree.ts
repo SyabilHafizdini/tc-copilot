@@ -1,5 +1,5 @@
 /** Nested folder/file tree built from flat doc refs (real filesystem paths,
- * e.g. "testcases/sit/production-monitoring/1.1.3.1.1-AC01-01"). Pure —
+ * e.g. "testcases/sit/example-module/1.1.3.1.1-AC01-01"). Pure —
  * no React, no I/O — so it is trivial to unit test in isolation. */
 
 export type FolderNode = { kind: 'folder'; name: string; path: string; children: FileNode[] }

@@ -25,8 +25,12 @@ export function DocumentsPage({ state }: { state: State }) {
     <div className="page documents-page">
       <div className="page-head doc-header">
         <h1>Documents</h1>
-        {state.prd.adopted && <Pill state="ready">v{state.prd.adopted} adopted</Pill>}
-        {state.prd.staged && <Pill state="attn">v{state.prd.staged} staged</Pill>}
+        {state.prds.map((p) => (
+          <span key={p.id}>
+            {p.adopted !== null && <Pill state="ready">{p.id} v{p.adopted} adopted</Pill>}
+            {p.staged !== null && <Pill state="attn">{p.id} v{p.staged} staged</Pill>}
+          </span>
+        ))}
       </div>
 
       <Card>
@@ -46,7 +50,8 @@ export function DocumentsPage({ state }: { state: State }) {
       <div className="explorer-panes">
         {loading
           ? <div className="pane"><Skeleton lines={8} /></div>
-          : <VaultTree tree={sources} selected={sel} onSelect={setSel} />}
+          : <VaultTree tree={sources} selected={sel} onSelect={setSel}
+              subLabels={Object.fromEntries(state.prds.map((p) => [p.id, p.title]))} />}
         {doc
           ? <div className="pane document-view"><MarkdownBody body={doc.body_md} onNavigate={() => {}} /></div>
           : <div className="pane"><p className="section-label">Select a source to preview it verbatim</p></div>}

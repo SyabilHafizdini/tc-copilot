@@ -1,0 +1,19 @@
+story: /stories/US-FIXTURE-DOUBTS.md
+questions:
+  - id: Q-US-FIXTURE-DOUBTS-01
+    question: "Which fixture profile is used, and which mailbox receives the email?"
+    about: [HS-01]
+    home: "table:Scenario data"
+    proposed: null
+    members:
+      - SC-FIX-US-FIXTURE-DOUBTS-AC1-01#steps
+      - SC-FIX-US-FIXTURE-DOUBTS-AC1-01#data
+      - SC-UAT-FIX-J01#data
+  - id: Q-US-FIXTURE-DOUBTS-02
+    question: "What does the fixture page show at the end?"
+    about: [HS-02, BR-01]
+    home: "rule:new"
+    proposed: "The page shows done."
+    members:
+      - SC-FIX-US-FIXTURE-DOUBTS-AC2-02#scenario
+      - SC-FIX-US-FIXTURE-DOUBTS-AC2-02#expected

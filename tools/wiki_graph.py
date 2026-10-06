@@ -10,7 +10,7 @@ import json
 import subprocess
 import sys
 
-from wiki import ROOT, resolve_ref
+from wiki import ROOT, prd_rows, prd_version_text, resolve_ref
 from wiki_coverage import load_coverage
 
 RTM = ROOT / "build/rtm"
@@ -115,6 +115,7 @@ def build_model(concepts, manifest):
 
     for rel, fm in prd.items():
         add(rel, fm, "PRD Section")
+        nodes[-1]["prd"] = fm.get("prd")
     for rel, fm in figma.items():
         add(rel, fm, "Figma Page")
     for rel, fm in modules.items():
@@ -167,7 +168,7 @@ def build_model(concepts, manifest):
     links = [l for l in links
              if l["source"] in node_ids and l["target"] in node_ids]
     return {"nodes": nodes, "links": links,
-            "meta": {"prd_version": manifest.get("adopted_prd_version"),
+            "meta": {"prds": prd_rows(manifest),
                      "counts": {"nodes": len(nodes), "links": len(links)}}}
 
 
@@ -216,10 +217,12 @@ def convert(model, spine=False):
     if spine:
         keep = {e["fromNodeId"] for e in edges} | {e["toNodeId"] for e in edges}
         nodes = [n for n in nodes if n["nodeId"] in keep]
-    prd = (model.get("meta") or {}).get("prd_version")
+    prds = (model.get("meta") or {}).get("prds") or []
+    label = ", ".join(prd_version_text(p["id"], p["adopted"])
+                      for p in prds) or "no PRD"
     return {"meta": {"title": "tc-copilot Traceability"
                      + (" (chain)" if spine else ""),
-                     "description": f"PRD v{prd}: {len(nodes)} nodes, "
+                     "description": f"{label}: {len(nodes)} nodes, "
                                     f"{len(edges)} edges"},
             "nodes": nodes, "edges": edges}
 

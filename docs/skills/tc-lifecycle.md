@@ -12,7 +12,8 @@ preceded by a coverage-impact check.
 - Lint reports W4 hand-edit drift.
 
 Not for stale test cases (system-computed; regenerate them), not for
-re-wording (`tc-style` and a forced re-render), not for excluding test cases
+re-wording (`tc-style` and a forced re-render, or your own edit in the app's
+Test Cases page), not for excluding test cases
 from one run (`tc-suite-author`).
 
 ## One question decides the path
@@ -22,7 +23,7 @@ from one run (`tc-suite-author`).
 **No, the requirement is dead.** Void the AC, not the test case:
 
 ```
-py tools/wiki.py void-ac /stories/<id>.md#<AC-id> --by <you> --caused-by /sources/prd/<sec>.md --cause-version <n>
+py tools/wiki.py void-ac /stories/<id>.md#<AC-id> --by <you> --caused-by /sources/prd/<prd-id>/<sec>.md --cause-version <n>
 ```
 
 Test cases whose covers are all voided retire automatically with inherited

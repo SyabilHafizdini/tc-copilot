@@ -113,6 +113,14 @@ def test_explorer_docs_expose_frontmatter_type():
         assert "type" in d, f"{rel} missing 'type' key"
 
 
+def test_tree_items_say_which_prd_a_section_belongs_to():
+    for grp in em.explorer()["tree"]:
+        for it in grp["items"]:
+            assert "prd" in it, it
+            parts = it["ref"].split("/")
+            want = parts[2] if parts[:2] == ["sources", "prd"] and len(parts) >= 4 else None
+            assert it["prd"] == want, it
+
 if __name__ == "__main__":
     skip_if_empty("unit: app explorer models")
     for name, fn in sorted(globals().items()):

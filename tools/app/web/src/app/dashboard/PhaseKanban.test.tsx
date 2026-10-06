@@ -5,7 +5,7 @@ import type { State, NextRow } from '../api'
 
 function st(over: Partial<State>): State {
   return {
-    project: 'DEMO', prd: { adopted: '1', staged: null },
+    schema1: false, notice: null, project: 'DEMO', prds: [],
     stories: [], flows: [], cards: [], change_reports: [],
     totals: { tcs: 0 }, next: { banners: [], rows: [] }, inventory: [], suites: [], ...over,
   }

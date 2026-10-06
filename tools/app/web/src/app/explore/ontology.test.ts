@@ -13,6 +13,9 @@ const graph: GraphModel = {
     { id: 'testcases/sit/tc-1', type: 'TC', label: 'tc-1', state: 'active' },
     { id: 'testcases/uat/tc-2', type: 'TC', label: 'tc-2', state: 'active' },
     { id: 'sources/prd/3', type: 'PRD Section', label: 'PRD 3', state: 'aligned' },
+    { id: 'sources/prd/rental-application/1-1', type: 'PRD Section', label: '1.1 Eligibility', state: 'active', prd: 'rental-application' },
+    { id: 'sources/prd/rental-payment/1-1', type: 'PRD Section', label: '1.1 Fees', state: 'active', prd: 'rental-payment' },
+    { id: 'sources/prd/rental-payment/1-2', type: 'PRD Section', label: '1.2 Refunds', state: 'active' },
     { id: 'glossary/term-x', type: 'Term', label: 'Term X', state: 'aligned' },
   ],
   links: [
@@ -73,5 +76,25 @@ describe('buildOntologyTree', () => {
     const forest = buildOntologyTree(graph, docs)
     const trail = ancestorIds(forest, 'stories/US-A#AC1')
     expect(trail).toEqual(['grp::modules', 'modules/prod', 'stories/US-A', 'stories/US-A::ac'])
+  })
+
+  it('groups PRD sections under their PRD inside Sources', () => {
+    const sources = buildOntologyTree(graph, docs).find((n) => n.label === 'Sources (PRD)')!
+    const app = sources.children.find((n) => n.id === 'grp::prd::rental-application')!
+    const pay = sources.children.find((n) => n.id === 'grp::prd::rental-payment')!
+    expect(app.label).toBe('rental-application')
+    expect(app.children.map((c) => c.ref)).toEqual(['sources/prd/rental-application/1-1'])
+    expect(pay.children.map((c) => c.ref)).toEqual([
+      'sources/prd/rental-payment/1-1', 'sources/prd/rental-payment/1-2',
+    ])
+    // a flat sources/prd/<slug> (not migrated) stays directly under Sources
+    expect(sources.children.map((c) => c.ref)).toContain('sources/prd/3')
+  })
+
+  it('ancestorIds opens the PRD group of a section', () => {
+    const forest = buildOntologyTree(graph, docs)
+    expect(ancestorIds(forest, 'sources/prd/rental-payment/1-2')).toEqual([
+      'grp::sources', 'grp::prd::rental-payment',
+    ])
   })
 })

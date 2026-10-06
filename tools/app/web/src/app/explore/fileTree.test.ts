@@ -21,8 +21,8 @@ describe('buildFileTree', () => {
     ])
   })
 
-  it('builds arbitrarily deep nesting (testcases/sit/production-monitoring/...)', () => {
-    const tree = buildFileTree(['testcases/sit/production-monitoring/1.1.3.1.1-AC01-01'])
+  it('builds arbitrarily deep nesting (testcases/sit/example-module/...)', () => {
+    const tree = buildFileTree(['testcases/sit/example-module/1.1.3.1.1-AC01-01'])
     expect(tree).toEqual([
       {
         kind: 'folder', name: 'testcases', path: 'testcases',
@@ -31,9 +31,9 @@ describe('buildFileTree', () => {
             kind: 'folder', name: 'sit', path: 'testcases/sit',
             children: [
               {
-                kind: 'folder', name: 'production-monitoring', path: 'testcases/sit/production-monitoring',
+                kind: 'folder', name: 'example-module', path: 'testcases/sit/example-module',
                 children: [
-                  { kind: 'file', name: '1.1.3.1.1-AC01-01', ref: 'testcases/sit/production-monitoring/1.1.3.1.1-AC01-01' },
+                  { kind: 'file', name: '1.1.3.1.1-AC01-01', ref: 'testcases/sit/example-module/1.1.3.1.1-AC01-01' },
                 ],
               },
             ],
@@ -41,6 +41,17 @@ describe('buildFileTree', () => {
         ],
       },
     ])
+  })
+
+  it('nests PRD sections under a folder per PRD', () => {
+    const tree = buildFileTree([
+      'sources/prd/rental-application/1-1', 'sources/prd/rental-payment/1-1', 'sources/prd/rental-payment/1-2',
+    ])
+    const sources = tree[0] as Extract<FileNode, { kind: 'folder' }>
+    const prd = sources.children[0] as Extract<FileNode, { kind: 'folder' }>
+    expect(prd.children.map((c) => c.name)).toEqual(['rental-application', 'rental-payment'])
+    const pay = prd.children[1] as Extract<FileNode, { kind: 'folder' }>
+    expect(pay.children.map((c) => c.name)).toEqual(['1-1', '1-2'])
   })
 
   it('merges refs that share an intermediate folder without duplicating it', () => {
@@ -76,7 +87,7 @@ describe('buildFileTree', () => {
   it('sorts top-level folders alphabetically, matching the real doc set kinds', () => {
     const refs = [
       'testcases/sit/x', 'stories/US-1', 'sources/prd/1', 'resolutions/R-1',
-      'modules/81-tasking', 'glossary/edo', 'flows/production-monitoring-e2e',
+      'modules/81-tasking', 'glossary/edo', 'flows/example-module-e2e',
     ]
     const tree = buildFileTree(refs)
     expect(tree.map((n) => n.name)).toEqual(
@@ -90,11 +101,11 @@ describe('buildFileTree', () => {
   })
 
   it('produces folder nodes whose path is the joined ancestor segments, not just the leaf name', () => {
-    const tree = buildFileTree(['testcases/sit/production-monitoring/1.1.3.1.1-AC01-01'])
+    const tree = buildFileTree(['testcases/sit/example-module/1.1.3.1.1-AC01-01'])
     const testcases = tree[0] as Extract<FileNode, { kind: 'folder' }>
     const sit = testcases.children[0] as Extract<FileNode, { kind: 'folder' }>
     expect(sit.path).toBe('testcases/sit')
     const pm = sit.children[0] as Extract<FileNode, { kind: 'folder' }>
-    expect(pm.path).toBe('testcases/sit/production-monitoring')
+    expect(pm.path).toBe('testcases/sit/example-module')
   })
 })

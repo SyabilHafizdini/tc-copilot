@@ -49,6 +49,20 @@ describe('SelectableNode', () => {
     expect(screen.getByTestId('count')).toHaveTextContent('2')
   })
 
+  it('with chat Off it is a plain button: Enter and Space both open it, nothing is selected', () => {
+    const onActivate = vi.fn()
+    render(
+      <SelectionProvider chatEnabled={false}>
+        <SelectableNode node={a} onActivate={onActivate}><span>AC1 body</span></SelectableNode>
+        <Count />
+      </SelectionProvider>)
+    const node = screen.getByRole('button', { name: /AC1 body/i })
+    fireEvent.keyDown(node, { key: 'Enter' })
+    fireEvent.keyDown(node, { key: ' ' })
+    expect(onActivate).toHaveBeenCalledTimes(2)
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
   it('Enter and Space toggle selection', () => {
     render(<Harness />)
     const node = screen.getByRole('button', { name: /AC1 body/i })
@@ -64,6 +78,37 @@ describe('SelectableNode', () => {
     const node = screen.getByRole('button', { name: /AC1 body/i })
     fireEvent.doubleClick(node)
     expect(onActivate).toHaveBeenCalledOnce()
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+})
+
+function OffHarness({ onActivate }: { onActivate?: () => void }) {
+  return (
+    <SelectionProvider chatEnabled={false}>
+      <SelectableNode node={a} onActivate={onActivate}><span>AC1 body</span></SelectableNode>
+      <Count />
+    </SelectionProvider>
+  )
+}
+
+describe('SelectableNode with chat disabled', () => {
+  it('still renders its children but is not a selection toggle', () => {
+    render(<OffHarness />)
+    const node = screen.getByRole('button', { name: /AC1 body/i })
+    expect(node).not.toHaveAttribute('aria-pressed')
+    fireEvent.click(node)
+    fireEvent.keyDown(node, { key: ' ' })
+    expect(node).not.toHaveClass('selected')
+    expect(screen.getByTestId('count')).toHaveTextContent('0')
+  })
+
+  it('a single click or Enter activates the node instead of selecting it', () => {
+    const onActivate = vi.fn()
+    render(<OffHarness onActivate={onActivate} />)
+    const node = screen.getByRole('button', { name: /AC1 body/i })
+    fireEvent.click(node)
+    fireEvent.keyDown(node, { key: 'Enter' })
+    expect(onActivate).toHaveBeenCalledTimes(2)
     expect(screen.getByTestId('count')).toHaveTextContent('0')
   })
 })

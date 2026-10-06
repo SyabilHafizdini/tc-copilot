@@ -2,6 +2,8 @@ import type { ExplorerSnapshot } from './explorer/types'
 import type { InboxSnapshot } from './inbox/types'
 import type { Message, Part, Event } from '@opencode-ai/sdk'
 import type { View } from './shell/routes'
+import type { EditableField, TestCasesPayload } from './testcases/types'
+import type { WorkbookEntry, WorkbookInventory, WorkbookPayload } from './workbook/types'
 
 export type NextRow = {
   id: string
@@ -28,13 +30,29 @@ export type InventoryItem = {
   mtime: string
 }
 
+export type Prd = { id: string; title: string; adopted: number | null; staged: number | null }
+
+export type ChangeReport = {
+  id: string
+  status: string
+  prd?: string | null
+  from?: number | null
+  to?: number | null
+}
+
 export type State = {
+  // A project written before the PRD registry (manifest schema 1). Its PRD
+  // list is empty whatever was adopted or staged, and every action except
+  // status and lint is refused until it is migrated; `notice` is the text the
+  // refusals print, and null on a migrated project.
+  schema1: boolean
+  notice: string | null
   project: string
-  prd: { adopted: string | null; staged: string | null }
+  prds: Prd[]
   stories: Array<Record<string, unknown> & { id: string; status: string }>
   flows: Array<{ id: string; status: string }>
   cards: Array<{ file: string; type: string; story: string | null }>
-  change_reports: Array<{ id: string; status: string }>
+  change_reports: ChangeReport[]
   totals: Record<string, number>
   next: { banners: NextRow[]; rows: NextRow[]; phase: PhaseRollup }
   inventory: InventoryItem[]
@@ -77,6 +95,13 @@ export async function getExplorer(): Promise<ExplorerSnapshot> {
   return r.json()
 }
 
+// The review grid: every test case as the workbook's C-TC sheet shows it.
+export async function getTestCases(): Promise<TestCasesPayload> {
+  const r = await fetch('/api/testcases')
+  if (!r.ok) throw new Error(`GET /api/testcases -> ${r.status}`)
+  return r.json()
+}
+
 export type SuiteFilters = {
   kind?: string
   include_modules?: string[]
@@ -84,6 +109,8 @@ export type SuiteFilters = {
   include_flows?: string[]
   exclude_flows?: string[]
   priorities?: string[]
+  include_prds?: string[]
+  exclude_prds?: string[]
 }
 
 export type SuitePreview = { count: number; ids: string[]; retired: number; stale: number }
@@ -95,7 +122,11 @@ export async function getSuitePreview(filters: SuiteFilters): Promise<SuitePrevi
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ filters }),
   })
-  if (!r.ok) throw new Error(`POST /api/suite_preview -> ${r.status}`)
+  if (!r.ok) {
+    // A refused filter (an unknown PRD id) carries the server's own words.
+    const body = await r.json().catch(() => null) as { error?: string } | null
+    throw new Error(body?.error ?? `POST /api/suite_preview -> ${r.status}`)
+  }
   return r.json()
 }
 
@@ -152,6 +183,16 @@ export async function runAction(
   return r.json()
 }
 
+// Rewords one field of one test case through the `tc_edit` action. The CLI's
+// own result comes back: rc 0 is saved, a non-zero rc is a refusal whose text
+// the caller shows verbatim. A request the server rejected outright (bad
+// params, lost token) throws, so it can never be mistaken for a save.
+export async function editTestCase(id: string, field: EditableField, text: string): Promise<ActionResult> {
+  const res = await runAction('tc_edit', { id, field, text })
+  if ('error' in res) throw new Error(res.error)
+  return res
+}
+
 // Triggers a browser download of build/inventory/<artifact>. When `params.name`
 // is given, the export action is run first (writing the artifact) and only then
 // is the download triggered; a refusal (rc != 0) throws so the UI can render it.
@@ -167,11 +208,43 @@ export async function runDownload(
     if (res.rc !== 0) throw new Error(res.stdout + res.stderr)
   }
   const a = document.createElement('a')
-  a.href = `/api/download/${artifact}`
+  // Each segment is encoded on its own: a workbook name may hold a character
+  // (#, ?, %, a space) that would otherwise cut or change the path.
+  a.href = `/api/download/${artifact.split('/').map(encodeURIComponent).join('/')}`
   a.download = ''
   document.body.appendChild(a)
   a.click()
   a.remove()
+}
+
+// One compiled workbook, drawn from the file. A 404 (no such file) or a 422
+// (unreadable file) carries the server's own words in `error`; they are thrown
+// so the page can show them.
+export async function getWorkbook(kind: string, file: string): Promise<WorkbookPayload> {
+  const r = await fetch(
+    `/api/workbook/${encodeURIComponent(kind)}/${encodeURIComponent(file)}`)
+  if (!r.ok) throw await serverError(r, 'GET /api/workbook')
+  return r.json()
+}
+
+// A failed read as an Error carrying the server's own words (`error` in the
+// body) when it sent any, else the request and its status.
+async function serverError(r: Response, what: string): Promise<Error> {
+  const body = await r.json().catch(() => null) as { error?: string } | null
+  return new Error(typeof body?.error === 'string' && body.error ? body.error : `${what} -> ${r.status}`)
+}
+
+// The inventory, newest compile first, one entry per workbook name, and the
+// files the server could not read (it names them instead of dropping them).
+export async function getWorkbookInventory(): Promise<WorkbookInventory> {
+  const r = await fetch('/api/workbooks')
+  if (!r.ok) throw await serverError(r, 'GET /api/workbooks')
+  const body = await r.json() as Partial<WorkbookInventory>
+  return { workbooks: body.workbooks ?? [], skipped: body.skipped ?? [] }
+}
+
+export async function getWorkbooks(): Promise<WorkbookEntry[]> {
+  return (await getWorkbookInventory()).workbooks
 }
 
 // onDisconnect fires whenever the underlying EventSource errors -- including

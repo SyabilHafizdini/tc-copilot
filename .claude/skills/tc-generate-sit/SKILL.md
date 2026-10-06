@@ -61,11 +61,12 @@ violation no matter how it is justified.
    `tools/sit_specs/<STORY>.yaml`; `py tools/render_sit.py` with no args lists
    the available specs.
 
-   One base TC per active AC in ascending AC order (AC01, AC02, …); technique
-   extras (BVA on rule boundaries, DT on multi-condition rules, EP/ST on
-   component value domains/states) immediately after their AC's base TC. IDs
-   from config `ids.tc_format` (zero-padded); an existing scenario binding owns
-   its ID.
+   One base TC per active AC; technique extras (BVA on rule boundaries, DT on
+   multi-condition rules, EP/ST on component value domains/states) sit in the
+   same section as their AC's base TC. The list is in RUN order (below), not
+   AC-number order; ids come from `(ac, seq)`, never from position. IDs from
+   config `ids.tc_format` (zero-padded); an existing scenario binding owns its
+   ID.
    **Every entry carries `coverage_items: [...]`** — the ids from the
    confirmed test model that this test case exercises (spec tc-rubric 5.2).
    The technique tag must fit the item kind (BVA ↔ boundary, EP ↔ partition,
@@ -73,6 +74,33 @@ violation no matter how it is justified.
    feasible item named by at least one test case; a negative case invalidates
    exactly ONE input, marked `(invalid)` in Test Data. `render_sit.py`
    refuses an id the model does not define.
+   **Every entry also carries `section`, `continue_from`, `run`, `starts_at`,
+   `ends_at`, `profile` and `confidence`**, and the spec declares `states`,
+   `entry_state` and `profiles` (tc-style R6 and R7; optional keys:
+   `fresh_run: true` on a fork, `element_block: false` on an observation that
+   does not visit the AC's form). `confidence` rates the four parts `scenario`, `steps`, `data`,
+   `expected` separately and `remarks` justifies each: `Source: ...` for High,
+   `Inferred: ... Verify: ...` for Medium / Low.
+   **Choose the runs first.** Each `run` is one flow with one profile and
+   becomes its own worksheet. The main profile's flow is the first run and
+   holds its refusals, read-only checks, base cases and state observations.
+   Each valid variant goes on a variant flow run that walks the flow again
+   from `continue_from: start`; a case that needs no earlier state of a flow
+   goes on the `Standalone checks` run as a `start`, and a fork is the last
+   resort, only for a case that needs a state its flow has already moved past
+   and that ordering or a variant flow cannot reach; a state-transition check is an observation that
+   continues from the case that performed the action. The rule is tc-style
+   R6; do not restate it, apply it.
+   Write the spec in run order, run by run, section by section: inside a
+   section the refusals first, then the entry that completes the step, then a
+   fork only if one cannot be avoided. Each entry continues from the entry
+   whose `ends_at` is its `starts_at` (the link is checked on the declared
+   states, and the chain line prints the declared state text); `post` feeds
+   Postconditions and says the same hand-over in words. The first entry of every run, and every
+   standalone entry, uses `continue_from: start`. The renderer refuses a spec
+   that omits these keys, breaks run or section contiguity, starts a run with
+   anything but `start`, or names a predecessor that is not earlier in the
+   spec or is in another run.
    Element names in Steps verbatim from the component table; expected
    values traceable to AC/rule text. Expected Results of every view/verify
    AC end with the element-verification block built by
@@ -103,7 +131,11 @@ violation no matter how it is justified.
    sealed content is unchanged; a lens whose pack says *Nothing to judge for
    this lens this round* needs no subagent. Never write or edit a
    `.carried.json` yourself. Four judges, merge, report round 1 → round 2.
-   If round 2 is lower, restore the round-1 spec and say so. The gate is
+   If round 2 is lower, restore the round-1 spec and say so. Then reconcile
+   `confidence.expected` with round-2 lens A (tc-style R7): no entry banded
+   below 4 on T1.4 or T1.5 keeps `expected` High; if any level or remark
+   changed, re-render with `--force`, re-seal, re-run `--round 2 --pack` and
+   re-judge the changed cases. The gate is
    `--round <current> --strict`, where current is round 2 unless round 2
    regressed and round 1 was restored, in which case round 1. `wiki next`
    names the round (`py tools/eval_rubric.py --story <id> --round <current>
@@ -145,6 +177,14 @@ violation no matter how it is justified.
 - Regeneration reads the wiki, never prior TC bodies; stale TCs regenerate
   under their existing IDs; retired scenarios are SUPPRESSED.
 - Drift (W4) blocks that file; surface it (release/revert is the human's).
+- Rewriting a part reopens its doubt; never raise a level. A `confidence`
+  level in the spec only stays or goes down: the renderer refuses a raise and
+  has no flag for it. A part rises to High only through a human answer on a
+  doubts card (`tc-resolve`), even when you rewrote it with that answer.
+- You reword in the spec and re-render under your own commit. `wiki tc edit`
+  is the human's own edit (the app's Save): from the command line, only when
+  the human dictates the exact text and tells you to save it under their
+  name. Never use it for wording you composed.
 
 ## Red flags — STOP
 
@@ -160,8 +200,25 @@ violation no matter how it is justified.
   to write `confirmed` → the human never answered the card. Stop.
 - A spec entry has no `coverage_items` "because none fit" → the model is
   missing an item; take it back to the card. Stop.
+- The validator names a link and you are about to add `fresh_run: true` to
+  silence it → first check whether the order is wrong, the case can begin at
+  the start (`Standalone checks`) or it belongs on a variant flow sheet; a
+  fork you can avoid by reordering is a defect. Stop.
+- More than one in ten entries is `fresh_run: true` → the variants belong on a
+  variant flow sheet and the transition checks should be observations (tc-style
+  R6). Regroup before rendering. Stop.
+- Most entries say `continue_from: start` → that is a pile of isolated blocks,
+  not a flow the tester (or the automation) can run top-down. Chain them. Stop.
+- A part is rated High but it names something the source does not state - an
+  expected message or page, a test value you made up, an extra step → that
+  part is Medium or Low with an `Inferred: ... Verify: ...` remark. Stop.
+- All four parts carry the same level on every entry → you rated the test
+  case, not its parts. Rate scenario, steps, data and expected one by one. Stop.
 - About to copy `render_sit.py` for a new story → the engine is shared; write
   `tools/sit_specs/<STORY>.yaml` instead. Stop.
+- A `confidence` level goes up in your spec diff, or `render_sit` printed
+  **REFUSED: confidence raised without a human answer** → only a human answer
+  raises a level. Put the level back and take the doubt to `tc-resolve`. Stop.
 - `export refused: ... no score on the currently sealed set` and you reach for
   `--draft` to ship the final → the draft is round 0 only. Re-score (or run
   the missing lens), then export. Stop.

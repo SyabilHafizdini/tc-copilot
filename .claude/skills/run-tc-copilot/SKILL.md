@@ -19,7 +19,8 @@ py tools/wiki.py next
 Read-only, ~1s. Prints for every story and flow: its state, the **literal next
 command**, and the **skill that owns it**. Use this instead of deriving the next
 step yourself from `status` + `gate` + frontmatter. `--story <id>` narrows it.
-It also raises banners for a staged-but-unadopted PRD and for W4 hand-edit drift.
+It also raises banners for a staged-but-unadopted PRD (one per PRD, naming it, and
+reporting a rejected report that awaits a corrected document) and for W4 hand-edit drift.
 
 ## Which skill?
 
@@ -31,7 +32,10 @@ It also raises banners for a staged-but-unadopted PRD and for W4 hand-edit drift
 | propose/confirm a coverage map, then render **SIT** test cases | `tc-generate-sit` |
 | render **UAT** test cases from an asserted flow journey | `tc-generate-uat` |
 | pick/filter already-generated TCs into a workbook | `tc-suite-author` |
-| word or re-word TC content | `tc-style` |
+| word or re-word TC content | `tc-style` (or the human edits it in the app's Test Cases page) |
+| settle the AI's doubts (Medium / Low parts) on a doubts card | `tc-resolve` |
+| score an existing set of test cases against the 29119-4 rubric | `tc-evaluate` |
+| run the test model and the grade loop while generating | `tc-rubric` |
 | retire / void / unretire a TC, or resolve W4 drift | `tc-lifecycle` |
 | handle a new PRD version (change report) | `tc-change-report` |
 | propagate a human correction through the wiki | `tc-correct` |
@@ -74,8 +78,8 @@ Use `--fast` in the edit loop; run the full suite before committing.
 
 ```
 py tools/wiki.py next [--story US-XXXX]    # what to do next (read-only)
-py tools/wiki.py status                    # story table, TC counts, adopted PRD version
-py tools/wiki.py lint                      # L1-L13 / W1-W6; exit 1 on any L error (~3s)
+py tools/wiki.py status                    # story table, TC counts, one `PRD <id>: adopted vN[, vM staged]` line per PRD
+py tools/wiki.py lint                      # L1-L15 / W1-W10; exit 1 on any L error (~3s)
 py tools/wiki.py manifest                  # rebuild manifest.json from frontmatter
 py tools/wiki.py index                     # regenerate every index.md
 py tools/wiki.py gate --story US-XXXX      # hard generation gate (spec §7.1)
@@ -84,6 +88,7 @@ py tools/wiki.py coverage --story US-XXXX [--propose] [--graph]
 py tools/wiki.py cascade [--graph]         # staleness flags only; never regenerates
 py tools/wiki.py impact <ref> [--json] [--graph]   # downstream impact, before you change
 py tools/wiki.py seal                      # hash-seal TC files into manifest (spec P6)
+py tools/wiki.py tc edit <tc-id> --field <field> --from <file> --by <human>   # human rewording of one field, in the spec; renders, seals, commits once
 py tools/wiki.py rtm [--graph]             # build/rtm/{matrix,trace,graph.json,gaps}
 py tools/wiki.py suite compile sit-all [--graph]
 py tools/wiki.py dashboard                 # build/status/{dashboard.json,dashboard.html}
@@ -92,9 +97,10 @@ py tools/wiki.py app [--port 8765] [--no-open]   operator app (needs FastAPI)
 py tools/test_app_visual.py                visual gate: app renders + styled (needs Playwright)
 py tools/wiki.py next --json               structured next-action state
 py tools/wiki.py export --story US-XXXX --name xxxx-sit-r1
-py tools/wiki.py triage [--apply] [--prd-version N]   # PUT_FILES_HERE/ -> inputs/
-py tools/wiki.py ingest-prd | ingest-figma | ingest-decks
-py tools/wiki.py diff --prd                # adopted vs staged section diff
+py tools/wiki.py triage [--apply] [--prd <id>] [--prd-title "<t>"] [--prd-version N]   # PUT_FILES_HERE/ -> inputs/
+py tools/wiki.py ingest-prd [--prd <id>] [--title "<t>"] | ingest-figma | ingest-decks
+py tools/wiki.py diff --prd [<id>]         # adopted vs staged section diff of one PRD
+py tools/wiki.py migrate-prds [--id <id> --title "<t>"]   # once, human-gated: schema-1 project -> PRD registry
 py tools/wiki.py migrate-ids               # ONLY sanctioned tc_format change (spec §10)
 py tools/wiki.py migrate-provenance [--apply]   # backfill provenance on stories predating lint L13
 py tools/eval_golden.py [--strict]         # wiki vs eval/golden workbooks (SIT + UAT)
@@ -109,7 +115,7 @@ Rendering:
 
 ```
 py tools/render_sit.py --story US-XXXX [--force]      # SIT — one shared engine
-py tools/render_production_monitoring_uat.py [--force] # UAT — journey-derived
+py tools/render_uat.py --flow <FLOW-ID> [--force]      # UAT — one shared engine, journey-derived
 ```
 
 SIT test-case **content** is data at `tools/sit_specs/<STORY>.yaml` (named keys,
@@ -117,8 +123,35 @@ validated before anything is written). Never copy the engine to open a new
 scope — write a spec. See `tc-generate-sit`.
 
 Human-gated lifecycle & change commands (`retire`, `void-ac`, `unretire`,
-`release`, `revert`, `approve-cr`, `reject-cr`) are documented in the
-`tc-lifecycle` and `tc-change-report` skills.
+`release`, `revert`, `approve-cr`, `reject-cr`, `migrate-prds`) are documented
+in the `tc-lifecycle` and `tc-change-report` skills (and below, for
+`migrate-prds`).
+
+`migrate-prds` is a one-time, one-way conversion: propose it, ask the human for
+the PRD id and title (permanent, never inferred from a file name), and run it only
+at the human's explicit instruction. Its refusals are fixed upstream, never
+bypassed.
+
+On a schema-1 project every command except `migrate-prds`, `status` and `lint`
+refuses and names `migrate-prds`; so do `render_sit.py` and `render_uat.py`.
+`status` says the manifest is schema 1 and `lint` warns W10. `tc edit` makes the
+refusal itself, after it has consumed its text file and before it writes
+anything. `app` still opens (its views only read) and shows a migration notice
+on every page; every action it runs is refused the same way.
+`eval_rubric.py --apply-patch` refuses too (scoring does not).
+
+`tc edit` is human-gated too. It is the human's own edit: run it from the
+command line only when the human dictates the exact text and tells you to save
+it under their name; the `--from` file holds their words verbatim, and their
+name goes in `--by`. Never use it for wording you composed: you reword in the
+spec and re-render under your own commit (`tc-style`). It edits the spec,
+never a `testcases/` file, and never a confidence level or remark. It refuses
+`--allow-lint-errors` and a `--by` that is empty, multi-line or a flag.
+Rewording a part a human had confirmed returns that part to its authored level
+on the render (the confirmation was of the old text), and the command's
+output, the log and the commit say so; tell the human before running it. In
+the operator app it is the Save button of the review panel on the Test Cases
+page.
 
 Every mutating command auto-commits as `tc-agent <tc-agent@internal>`; append
 `--no-commit` to batch several steps into one commit.
@@ -149,7 +182,7 @@ correct behavior, not bugs — never route around one to unblock yourself**
 
 ## Where things live
 
-- `sources/prd/*.md` — verbatim PRD sections (tables preserved as markdown)
+- `sources/prd/<prd-id>/*.md` - verbatim PRD sections, one directory per PRD (tables preserved as markdown)
 - `stories/*.md` — ACs/rules/components as frontmatter fragments
 - `tools/sit_specs/*.yaml` — SIT test-case content (the generation run-record)
 - `testcases/sit/<module>/*.md`, `testcases/uat/<flow>/*.md` — generated TCs
@@ -177,7 +210,9 @@ correct behavior, not bugs — never route around one to unblock yourself**
 - Deck ingestion is verified against a synthetic pptx fixture only.
 - CR classification (editorial|material) is agent work by editing the CR — the
   tooling writes `unclassified`.
-- docx PRD input is not implemented (pdf and md are).
+- PRD input is pdf, docx or md. A docx needs `python-docx` and Word heading
+  styles (Heading 1/2/3) on its section titles; one with no headings is
+  refused.
 
 ## Not this skill
 

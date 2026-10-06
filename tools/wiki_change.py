@@ -2,8 +2,8 @@
 """Change management (tc-copilot-spec §12): PRD re-ingestion staging,
 change reports, approval/rejection, on-demand diff.
 
-Staging is write-only until human approval: `sources/prd/` concepts and
-`adopted_prd_version` are untouched by ingestion of a newer version (spec
+Staging is write-only until human approval: `sources/prd/<id>/` concepts and
+that PRD's adopted version are untouched by ingestion of a newer version (spec
 §5.1.5). Approval is per-report, as a unit, human-gated. Classification of
 each change (editorial|material) is LLM/agent-proposed by EDITING the CR
 before approval — this module writes 'unclassified'.
@@ -13,21 +13,42 @@ import json
 import re
 import sys
 
-from wiki import (ROOT, agent_commit, append_log, load_all, load_manifest,
-                  now_iso, read_concept, resolve_ref, save_manifest,
-                  write_concept)
+from wiki import (ROOT, adopted_version, agent_commit, append_log, arg_after,
+                  load_all, load_manifest, now_iso, read_concept,
+                  reports_for_prd, resolve_prd_arg, resolve_ref, save_manifest,
+                  set_prd_versions, staged_version, write_concept)
+
+
+def staging_file(prd_id, version):
+    return ROOT / "staging" / prd_id / f"prd-v{version}.json"
+
+
+def cr_file(prd_id, cr_id):
+    return ROOT / "changereports" / prd_id / f"{cr_id}.md"
 
 
 def next_cr_number():
-    nums = [int(m.group(1)) for p in (ROOT / "changereports").glob("CR-*.md")
-            if (m := re.match(r"CR-(\d+)", p.stem))] if \
-        (ROOT / "changereports").exists() else []
+    """CR numbers are unique across the project, whichever PRD they belong
+    to, so a report id never needs its PRD to be unambiguous."""
+    base = ROOT / "changereports"
+    nums = [int(m.group(1)) for p in base.rglob("CR-*.md")
+            if (m := re.match(r"CR-(\d+)", p.stem))] if base.exists() else []
     return max(nums, default=0) + 1
 
 
-def current_prd_sections():
+def read_staged(prd_id, version, cmd):
+    """The staged sections file, or a refusal naming it."""
+    sf = staging_file(prd_id, version)
+    if not sf.exists():
+        sys.exit(f"{cmd} refused: the staged file {sf.relative_to(ROOT).as_posix()} "
+                 f"is missing, so v{version} of PRD {prd_id} cannot be read.\n"
+                 f"  Re-run ingest-prd for that version to stage it again.")
+    return json.loads(sf.read_text(encoding="utf-8"))
+
+
+def current_prd_sections(prd_id):
     out = {}
-    for p in sorted((ROOT / "sources/prd").glob("*.md")):
+    for p in sorted((ROOT / "sources/prd" / prd_id).glob("*.md")):
         if p.name in ("index.md", "log.md"):
             continue
         fm, body = read_concept(p)
@@ -38,7 +59,8 @@ def current_prd_sections():
             out[p.stem] = {"slug": p.stem, "num": fm.get("title", "").split(" ")[0]
                            if fm.get("heading_path") else None,
                            "title": fm["title"], "hash": fm["content_hash"],
-                           "body": live, "prd_version": fm.get("prd_version")}
+                           "body": live, "prd_version": fm.get("prd_version"),
+                           "removed_in": fm.get("removed_in")}
     return out
 
 
@@ -54,7 +76,7 @@ def compute_diff(old, new_sections):
             matched_new.add(slug)
             (unchanged if n["content_hash"] == o["hash"] else modified).append(
                 {"slug": slug, "old": o, "new": n})
-        else:
+        elif not o.get("removed_in"):
             removed.append({"slug": slug, "old": o})
     for slug, n in new.items():
         if slug not in matched_new:
@@ -84,9 +106,9 @@ def compute_diff(old, new_sections):
             "moved": moved, "unchanged": unchanged}
 
 
-def impact_analysis(changed_slugs, concepts, manifest):
+def impact_analysis(changed_slugs, concepts, manifest, prd_id):
     """Deterministic traversal: changed sections -> stories -> TCs -> suites."""
-    changed_rels = {f"sources/prd/{s}" for s in changed_slugs}
+    changed_rels = {f"sources/prd/{prd_id}/{s}" for s in changed_slugs}
     stories = []
     for rel, (fm, _b, _p) in concepts.items():
         if fm and fm.get("type") == "User Story":
@@ -114,32 +136,33 @@ def excerpt(text, n=400):
     return t[:n] + ("…" if len(t) > n else "")
 
 
-def stage_prd_version(sections, version, src_rel, manifest):
-    staging = ROOT / "staging"
-    staging.mkdir(exist_ok=True)
-    (staging / f"prd-v{version}.json").write_text(
-        json.dumps({"version": version, "source_file": src_rel,
+def stage_prd_version(sections, version, src_rel, manifest, prd_id):
+    sfile = staging_file(prd_id, version)
+    sfile.parent.mkdir(parents=True, exist_ok=True)
+    sfile.write_text(
+        json.dumps({"prd": prd_id, "version": version, "source_file": src_rel,
                     "staged_at": now_iso(), "sections": sections},
                    indent=1, ensure_ascii=False),
         encoding="utf-8", newline="\n")
-    old = current_prd_sections()
+    old = current_prd_sections(prd_id)
     diff = compute_diff(old, sections)
     concepts, _m = load_all()
     changed = [m["slug"] for m in diff["modified"]] + \
               [r["slug"] for r in diff["removed"]]
-    stories, tcs, conflicts = impact_analysis(changed, concepts, manifest)
+    stories, tcs, conflicts = impact_analysis(changed, concepts, manifest, prd_id)
 
+    adopted = adopted_version(manifest, prd_id)
     crn = next_cr_number()
     cr_id = f"CR-{crn:03d}"
     fm = {"type": "Change Report", "id": cr_id,
-          "title": f"{cr_id}: PRD v{manifest['adopted_prd_version']} -> v{version}",
+          "title": f"{cr_id}: PRD {prd_id} v{adopted} -> v{version}",
           "description": f"{len(diff['modified'])} modified, {len(diff['added'])} "
                          f"added, {len(diff['removed'])} removed, "
                          f"{len(diff['moved'])} moved",
-          "from_version": manifest["adopted_prd_version"],
+          "prd": prd_id, "from_version": adopted,
           "to_version": version, "status": "pending"}
     L = ["# Summary", "",
-         f"PRD v{fm['from_version']} -> v{version}: "
+         f"PRD {prd_id} v{fm['from_version']} -> v{version}: "
          f"{len(diff['modified'])} section(s) modified, {len(diff['added'])} added, "
          f"{len(diff['removed'])} removed, {len(diff['moved'])} moved, "
          f"{len(diff['unchanged'])} unchanged. Agent narrative to be refined on "
@@ -182,33 +205,89 @@ def stage_prd_version(sections, version, src_rel, manifest):
                  "needs-review)")
     if not stories:
         L.append("- none: no aligned content is affected")
-    (ROOT / "changereports").mkdir(exist_ok=True)
-    write_concept(ROOT / "changereports" / f"{cr_id}.md", fm, "\n".join(L) + "\n")
-    manifest["staged_prd_version"] = version
+    crp = cr_file(prd_id, cr_id)
+    crp.parent.mkdir(parents=True, exist_ok=True)
+    write_concept(crp, fm, "\n".join(L) + "\n")
+    set_prd_versions(manifest, prd_id, staged=version)
     save_manifest(manifest)
-    append_log(f"**Change Report (agent)**: {cr_id} staged (v{fm['from_version']} -> "
-               f"v{version}); adopted version unchanged")
-    print(f"staged PRD v{version}; {cr_id} written "
-          f"({fm['description']}); adopted stays v{fm['from_version']} until approval")
-    agent_commit(f"ingest(prd): stage v{version} + {cr_id}")
+    append_log(f"**Change Report (agent)**: {cr_id} staged ({prd_id} "
+               f"v{fm['from_version']} -> v{version}); adopted version unchanged")
+    print(f"staged PRD {prd_id} v{version}; {cr_id} written "
+          f"({fm['description']}); adopted stays v{fm['from_version']} until "
+          f"approval")
+    for r in reports_for_prd(prd_id):
+        if r.get("status") == "pending" and r["id"] != cr_id \
+                and r.get("to_version") != version:
+            print(f"note: {r['id']} (v{r.get('to_version')}) is superseded by "
+                  f"this staging and can no longer be approved; act on {cr_id}, "
+                  f"or reject {r['id']}")
+    agent_commit(f"ingest(prd): stage {prd_id} v{version} + {cr_id}")
 
 
-def cmd_approve(args):
+def _pending_cr(cmd, args):
+    """Shared front half of approve-cr / reject-cr: the report, the human, the
+    PRD, and the proof that the report belongs to that PRD and is pending."""
+    if not args or args[0].startswith("--"):
+        sys.exit(f"usage: wiki {cmd} CR-NNN --by <user> [--prd <id>]")
     cr_id = args[0]
-    by = args[args.index("--by") + 1] if "--by" in args else None
-    if not by:
-        sys.exit("approve-cr: --by <user> required (human-gated)")
-    crp = ROOT / "changereports" / f"{cr_id}.md"
+    if not re.fullmatch(r"CR-\d+", cr_id):
+        sys.exit(f"{cmd}: '{cr_id}' is not a report id (expected CR-NNN)")
+    by = arg_after(args, "--by") if "--by" in args else None
+    if not by or by.strip() == "" or by.startswith("--"):
+        sys.exit(f"{cmd}: --by <user> required (human-gated); "
+                 f"got {by!r}")
+    manifest = load_manifest()
+    prd_id = resolve_prd_arg(manifest, args)
+    crp = cr_file(prd_id, cr_id)
+    if not crp.exists():
+        base = ROOT / "changereports"
+        owner = next((p.parent.name for p in sorted(base.rglob(f"{cr_id}.md"))),
+                     None) if base.exists() else None
+        if owner:
+            sys.exit(f"{cmd} refused: {cr_id} belongs to PRD {owner}, not "
+                     f"{prd_id}.\n  Re-run with --prd {owner}.")
+        sys.exit(f"{cmd}: {cr_id} not found under changereports/{prd_id}/")
     cfm, cbody = read_concept(crp)
     if cfm.get("status") != "pending":
         sys.exit(f"{cr_id} is '{cfm.get('status')}', not pending")
+    return cr_id, by, prd_id, manifest, crp, cfm, cbody
+
+
+def _refuse_if_not_current(cr_id, cfm, manifest, prd_id):
+    """Only the report for the PRD's staged version, written against the
+    version now adopted, may be approved. Anything else would move the adopted
+    version sideways or backwards. Refuses before anything is written."""
+    staged_v = staged_version(manifest, prd_id)
+    adopted = adopted_version(manifest, prd_id)
+    to_v, from_v = cfm.get("to_version"), cfm.get("from_version")
+    if to_v == staged_v and adopted is not None and to_v > adopted \
+            and from_v == adopted:
+        return
+    live = [r["id"] for r in reports_for_prd(prd_id)
+            if r.get("status") == "pending" and r["id"] != cr_id
+            and r.get("to_version") == staged_v
+            and r.get("from_version") == adopted]
+    if staged_v is None:
+        sys.exit(f"approve-cr refused: {cr_id} (PRD {prd_id} v{from_v} -> "
+                 f"v{to_v}) was superseded: v{adopted} is already adopted and "
+                 f"nothing is staged.\n  It can only be rejected: "
+                 f"reject-cr {cr_id} --by <user> --prd {prd_id}")
+    hint = (f"Act on {live[-1]} instead (v{adopted} -> v{staged_v})." if live else
+            f"No pending report matches the staged v{staged_v}.")
+    sys.exit(f"approve-cr refused: {cr_id} (PRD {prd_id} v{from_v} -> v{to_v}) "
+             f"can no longer be approved: adopted is v{adopted}, staged is "
+             f"v{staged_v}.\n  {hint}\n  Reject {cr_id} if it is no longer "
+             f"wanted.")
+
+
+def cmd_approve(args):
+    cr_id, by, prd_id, manifest, crp, cfm, cbody = _pending_cr("approve-cr", args)
     to_v = cfm["to_version"]
-    staged = json.loads((ROOT / "staging" / f"prd-v{to_v}.json")
-                        .read_text(encoding="utf-8"))
-    manifest = load_manifest()
-    old = current_prd_sections()
+    _refuse_if_not_current(cr_id, cfm, manifest, prd_id)
+    staged = read_staged(prd_id, to_v, "approve-cr")
+    old = current_prd_sections(prd_id)
     diff = compute_diff(old, staged["sections"])
-    outdir = ROOT / "sources/prd"
+    outdir = ROOT / "sources/prd" / prd_id
     for m in diff["modified"]:
         p = outdir / f"{m['slug']}.md"
         fm, body = read_concept(p)
@@ -221,25 +300,37 @@ def cmd_approve(args):
         fm["content_hash"] = m["new"]["content_hash"]
         fm["source_file"] = staged["source_file"]
         fm["heading_path"] = m["new"]["heading_path"]
+        fm.pop("removed_in", None)
         write_concept(p, fm, new_body)
         manifest["sources"][fm["id"]] = {"content_hash": fm["content_hash"],
-                                         "prd_version": to_v}
+                                         "prd_version": to_v, "prd": prd_id}
     for a in diff["added"]:
         n = a["new"]
-        fm = {"type": "PRD Section", "id": f"prd#{n['slug']}",
+        fm = {"type": "PRD Section", "id": f"prd#{prd_id}/{n['slug']}",
               "title": (f"{n['num']} {n['title']}" if n["num"] else n["title"]),
               "description": f"PRD v{to_v} section: {n['title']}",
+              "prd": prd_id,
               "prd_version": to_v, "content_hash": n["content_hash"],
               "source_file": staged["source_file"],
               "heading_path": n["heading_path"]}
         write_concept(outdir / f"{n['slug']}.md", fm, n["body"] + "\n")
         manifest["sources"][fm["id"]] = {"content_hash": n["content_hash"],
-                                         "prd_version": to_v}
+                                         "prd_version": to_v, "prd": prd_id}
+    for u in diff["unchanged"]:
+        if u["old"].get("removed_in"):      # restored unchanged: no longer removed
+            p = outdir / f"{u['slug']}.md"
+            fm, body = read_concept(p)
+            fm.pop("removed_in", None)
+            write_concept(p, fm, body)
+            manifest["sources"].get(fm["id"], {}).pop("removed_in", None)
     for r in diff["removed"]:
         p = outdir / f"{r['slug']}.md"
         fm, body = read_concept(p)
         fm["removed_in"] = to_v
         write_concept(p, fm, body)
+        manifest["sources"].setdefault(fm["id"], {
+            "content_hash": fm["content_hash"],
+            "prd_version": fm["prd_version"], "prd": prd_id})["removed_in"] = to_v
     for mv in diff["moved"]:
         p = outdir / f"{mv['old_slug']}.md"
         fm, body = read_concept(p)
@@ -249,56 +340,56 @@ def cmd_approve(args):
         write_concept(p, fm, body)
         manifest["sources"][fm["id"]]["prd_version"] = to_v
 
-    manifest["adopted_prd_version"] = to_v
-    manifest["staged_prd_version"] = None
+    set_prd_versions(manifest, prd_id, adopted=to_v)
+    if staged_version(manifest, prd_id) == to_v:
+        set_prd_versions(manifest, prd_id, staged=None)
     cfm["status"] = "approved"
     cfm["asserted_by"] = by
     cfm["asserted_at"] = now_iso()
     write_concept(crp, cfm, cbody)
     save_manifest(manifest)
-    append_log(f"**Approval ({by})**: {cr_id} approved — PRD v{to_v} adopted; "
-               "cascade fired")
-    print(f"{cr_id} approved by {by}: adopted v{to_v} "
+    append_log(f"**Approval ({by})**: {cr_id} approved — PRD {prd_id} v{to_v} "
+               "adopted; cascade fired")
+    print(f"{cr_id} approved by {by}: adopted {prd_id} v{to_v} "
           f"({len(diff['modified'])} updated, {len(diff['added'])} added, "
           f"{len(diff['removed'])} removed-flagged, {len(diff['moved'])} aliased)")
-    # spec §12.3: approval fires the staleness cascade
+    # spec §12.3: approval fires the staleness cascade. It compares every
+    # aligned story's source_pins with the manifest's source hashes, so only
+    # stories citing a section this approval changed are flagged.
+    # (no commit of its own: the one commit below carries the Assertion-Event)
     from wiki import cmd_cascade
-    cmd_cascade()
-    agent_commit(f"approve-cr({cr_id}): adopt PRD v{to_v} by {by}\n\n"
+    cmd_cascade(commit=False)
+    agent_commit(f"approve-cr({cr_id}): adopt PRD {prd_id} v{to_v} by {by}\n\n"
                  f"Assertion-Event: cli-approve-cr {cr_id} by {by} at {now_iso()}")
 
 
 def cmd_reject(args):
-    cr_id = args[0]
-    by = args[args.index("--by") + 1] if "--by" in args else None
-    if not by:
-        sys.exit("reject-cr: --by <user> required")
-    crp = ROOT / "changereports" / f"{cr_id}.md"
-    cfm, cbody = read_concept(crp)
-    if cfm.get("status") != "pending":
-        sys.exit(f"{cr_id} is '{cfm.get('status')}', not pending")
+    cr_id, by, prd_id, manifest, crp, cfm, cbody = _pending_cr("reject-cr", args)
     cfm["status"] = "rejected"
     cfm["asserted_by"] = by
     cfm["asserted_at"] = now_iso()
     write_concept(crp, cfm, cbody)
-    append_log(f"**Rejection ({by})**: {cr_id} rejected — staged version remains "
-               "ingested-but-not-adopted; generation stays pinned")
-    print(f"{cr_id} rejected by {by}; staged v{cfm['to_version']} kept, "
-          f"adopted stays v{cfm['from_version']}")
+    adopted, staged_v = adopted_version(manifest, prd_id), staged_version(manifest, prd_id)
+    state = (f"staged v{staged_v} kept, adopted stays v{adopted}" if staged_v
+             else f"adopted stays v{adopted}, nothing staged")
+    append_log(f"**Rejection ({by})**: {cr_id} rejected — {prd_id}: {state}; "
+               "generation stays pinned")
+    print(f"{cr_id} rejected by {by}; {prd_id} {state}")
     agent_commit(f"reject-cr({cr_id}): by {by}\n\n"
                  f"Assertion-Event: cli-reject-cr {cr_id} by {by} at {now_iso()}")
 
 
 def cmd_diff(args):
-    """wiki diff --prd : adopted vs staged, printed (no side effects)."""
+    """wiki diff --prd [<id>] : adopted vs staged for one PRD (no side effects)."""
     manifest = load_manifest()
-    staged_v = manifest.get("staged_prd_version")
+    prd_id = resolve_prd_arg(manifest, args)
+    staged_v = staged_version(manifest, prd_id)
     if not staged_v:
-        sys.exit("diff: no staged PRD version")
-    staged = json.loads((ROOT / "staging" / f"prd-v{staged_v}.json")
-                        .read_text(encoding="utf-8"))
-    diff = compute_diff(current_prd_sections(), staged["sections"])
-    print(f"PRD v{manifest['adopted_prd_version']} (adopted) vs v{staged_v} (staged):")
+        sys.exit(f"diff: no staged version for PRD {prd_id}")
+    staged = read_staged(prd_id, staged_v, "diff")
+    diff = compute_diff(current_prd_sections(prd_id), staged["sections"])
+    print(f"PRD {prd_id} v{adopted_version(manifest, prd_id)} (adopted) vs "
+          f"v{staged_v} (staged):")
     for m in diff["modified"]:
         print(f"  modified  {m['old']['title']}")
     for a in diff["added"]:

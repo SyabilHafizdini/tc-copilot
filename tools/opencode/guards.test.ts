@@ -3,7 +3,7 @@ import { check } from "./guards"
 
 describe("blocked", () => {
   test("editing a generated test case", () => {
-    const m = check("edit", { filePath: "testcases/sit/production-monitoring/1.1.3.1.1-AC01-01.md" })
+    const m = check("edit", { filePath: "testcases/sit/example-module/1.1.3.1.1-AC01-01.md" })
     expect(m).toContain("tools/sit_specs")
   })
 
@@ -13,6 +13,7 @@ describe("blocked", () => {
 
   test("editing a verbatim PRD source", () => {
     expect(check("edit", { filePath: "sources/prd/4-1-1-1.md" })).toContain("tc-change-report")
+    expect(check("edit", { filePath: "sources/prd/rental-payment/1-1.md" })).toContain("tc-change-report")
   })
 
   test("editing a generated index file names wiki.py index, not sit_specs", () => {
@@ -27,18 +28,19 @@ describe("blocked", () => {
   })
 
   test("the UAT coverage override flag (worse than SIT: the map IS the test content)", () => {
-    const m = check("bash", { command: "py tools/render_production_monitoring_uat.py --allow-unconfirmed-coverage" })
+    const m = check("bash", { command: "py tools/render_uat.py --flow FLOW-DEMO-001 --allow-unconfirmed-coverage" })
     expect(m).toContain("not a substitute")
   })
 
   test("editing a generated UAT test case names the UAT renderer, not sit_specs", () => {
-    const m = check("edit", { filePath: "testcases/uat/production-monitoring/UAT-01.md" })
+    const m = check("edit", { filePath: "testcases/uat/example-module/UAT-01.md" })
     expect(m).not.toBeNull()
-    expect(m).toContain("render_production_monitoring_uat")
+    expect(m).toContain("render_uat.py --flow")
+    expect(m).toContain("tools/uat_specs/")
   })
 
   test("editing a generated SIT test case still names tools/sit_specs", () => {
-    const m = check("edit", { filePath: "testcases/sit/production-monitoring/1.1.3.1.1-AC01-01.md" })
+    const m = check("edit", { filePath: "testcases/sit/example-module/1.1.3.1.1-AC01-01.md" })
     expect(m).toContain("tools/sit_specs")
   })
 
@@ -73,7 +75,7 @@ describe("allowed - false positives are the dangerous failure", () => {
     ["bash", { command: "py tools/wiki.py seal" }],
     ["bash", { command: "py tools/wiki.py next --brief" }],
     ["bash", { command: "grep -rn allow-unconfirmed-coverage docs/" }],
-    ["read", { filePath: "testcases/sit/production-monitoring/TC-01.md" }],
+    ["read", { filePath: "testcases/sit/example-module/TC-01.md" }],
     ["grep", { pattern: "manifest.json" }],
     ["bash", { command: "py tools/render_sit.py --story US-VHLD --force  # do not add --allow-unconfirmed-coverage" }],
     ["bash", { command: "py tools/render_sit.py --story US-VHLD # --allow-unconfirmed-coverage is forbidden" }],

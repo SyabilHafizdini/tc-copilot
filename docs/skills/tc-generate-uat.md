@@ -27,18 +27,28 @@ the flow's file name, not its id.
 
 ## How it runs
 
-1. **Render the chain.** The flow gets its own run-record script, copied
-   from `tools/render_production_monitoring_uat.py`. Per journey entry:
+1. **Render the chain.** The flow gets its own data spec at
+   `tools/uat_specs/<FLOW-ID>.yaml` (data only, named keys); the engine
+   `tools/render_uat.py` is shared, never copied. Render with
+   `py tools/render_uat.py --flow <FLOW-ID>`. Per journey entry:
    - id from `ids.tc_format_uat` (`UAT-` prefix in the wiki; exports strip
      it);
    - `covers`: the story AC ref plus the journey ref `#JNN`, plus the flow
      branch ref where an entry realises one;
    - precondition: the previous entry's `end_state` ("Continue from TC-...:
      user is at ..."); the first entry uses the flow's entry condition;
+     the spec declares `profiles` and each entry names its `profile`; an
+     entry that starts from a state another entry already continues, or from
+     a predecessor with another profile, needs `fresh_run: true` and reads
+     "Continue from TC-... (fresh run replayed to this point)";
    - expected results: the AC's Then-clause plus the element-verification
      block from the covered AC's confirmed coverage map;
    - `coverage_items`: `SC-MAIN` on every entry; an entry that realises an
      alternative scenario names that `SC-ALT-nn` too.
+   Each test case also carries its stage as `section` and a confidence
+   level with a remark for each of four parts (scenario, steps, data,
+   expected) in the spec entry's `confidence` and `remarks`, shown in the
+   workbook's `AI Confidence` and `AI Remarks` columns.
 2. **Draft export.** Right after the first seal:
 
    ```
@@ -48,7 +58,7 @@ the flow's file name, not its id.
    You receive the DRAFT round 0 workbook now and review it while the grade
    loop runs.
 3. **Grade loop.** As in `tc-rubric`, with `--flow <id>`. The improver's
-   patch applies to the run-record's wording tables, never to rendered
+   patch applies to the spec's entries, never to rendered
    files. Re-render with `--force`, re-seal, round 2.
 4. **Seal and verify.** `seal`, `manifest`, `lint`. Re-render prints
    `rendered 0` unchanged. `eval_golden.py` must show 1:1 segmentation:

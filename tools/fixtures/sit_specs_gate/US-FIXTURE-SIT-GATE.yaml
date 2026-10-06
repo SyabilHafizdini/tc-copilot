@@ -15,6 +15,11 @@ generator_version: "0.0.0"
 pre_common: |-
   1. Fixture precondition.
 post_default: No system state changed (read-only verification).
+entry_state: fixture-home
+states:
+  fixture-home: "Fixture start."
+profiles:
+  fixture-profile: "Fixture profile."
 test_cases:
 - ac: AC1
   seq: 1
@@ -27,3 +32,14 @@ test_cases:
     1. Do nothing.
   expected: |-
     1. Nothing happens.
+  section: Fixture
+  continue_from: start
+  run: Main
+  starts_at: fixture-home
+  ends_at: fixture-home
+  profile: fixture-profile
+  confidence:
+    scenario: High
+    steps: High
+    data: High
+    expected: High

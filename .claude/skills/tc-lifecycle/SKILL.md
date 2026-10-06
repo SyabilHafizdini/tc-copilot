@@ -26,7 +26,7 @@ py tools/wiki.py retire <tc-id> --by <user> --reason superseded --superseded-by 
 
 # requirement dead — void at the AC, the cascade does the retiring
 py tools/wiki.py void-ac /stories/<id>.md#<AC-id> --by <user> \
-    --caused-by /sources/prd/<sec>.md --cause-version <n> [--note "..."]
+    --caused-by /sources/prd/<prd-id>/<sec>.md --cause-version <n> [--note "..."]
 # TCs whose covers are ALL voided -> retired:voided (inherited authority);
 # TCs with mixed coverage -> stale for human decision, NOT retired
 
@@ -55,7 +55,10 @@ py tools/wiki.py revert <tc-id>                # restore file to sealed content
 
 - A TC is **stale**, not wrong → regenerate it (`tc-generate-sit` /
   `tc-generate-uat`). Stale is system-computed; nothing here applies.
-- A TC's wording is wrong → `tc-style` + re-render the scope with `--force`.
+- A TC's wording is wrong → `tc-style` (the agent rewrites the spec and
+  re-renders the scope with `--force`), or the human edits it in the app's
+  Test Cases page. The agent never runs `wiki tc edit` with wording it
+  composed.
 - The requirement changed because a new PRD landed → `tc-change-report` first;
   its approval fires the cascade, which may make retirement unnecessary.
 - Excluding TCs from one test run without retiring them → `tc-suite-author`

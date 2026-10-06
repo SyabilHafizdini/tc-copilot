@@ -25,8 +25,10 @@ violation no matter how it is justified.
    `confirmed`: the flow's scenario model (`SC-MAIN` + `role: alternative`
    items, 29119-4 5.2.9) is proposed and asserted in tc-align with the
    journey (load **tc-rubric**, "Step 2", flow paragraph).
-2. **Render the chain**: copy `tools/render_production_monitoring_uat.py` as
-   this flow's run-record. Per journey entry, in order:
+2. **Render the chain**: write this flow's data spec at
+   `tools/uat_specs/<FLOW-ID>.yaml` - **data only, named keys**. The engine
+   `tools/render_uat.py` is shared; never copy it. Render with
+   `py tools/render_uat.py --flow <FLOW-ID>`. Per journey entry, in order:
    - ID from config `ids.tc_format_uat` (wiki-unique `UAT-` prefix; exports
      strip it so the workbook shows the org's doc-scoped `TC-...`); an
      existing scenario binding owns its ID.
@@ -41,6 +43,12 @@ violation no matter how it is justified.
    - Precondition = previous entry's `end_state` ("Continue from
      TC-...: user is at ..."); first entry uses the flow's
      entry_condition.
+   - The spec declares `profiles` (name: data-set description) and each entry
+     names its `profile`. An entry that starts from a state another entry
+     already continues, or from a predecessor with another profile, needs
+     `fresh_run: true` (its predecessor is `continue_from`, else the previous
+     entry); the precondition then reads "Continue from
+     TC-... (fresh run replayed to this point): ..." (tc-style R6).
    - Expected results = the AC's Then-clause + the element-verification block
      built by `wiki_coverage.element_verification_block` from the covered AC's
      confirmed coverage_map — never hand-write element lists.
@@ -48,7 +56,15 @@ violation no matter how it is justified.
      an alternative scenario names that `SC-ALT-nn` too. The engine caps
      T2.1 at band 2 while the model has no alternative item — that is a
      finding about the model, surface it, do not hide it.
-   Polish wording per TC through the run-record script, never by hand-edit
+   - `section`: the entry's stage (its `area`), so the sheet prints one
+     `Section:` row per stage (tc-style R6). The first entry's precondition
+     reads `Start of run: <entry_condition>`.
+   - Confidence (tc-style R7): per journey entry, a `(level, remark)` for each
+     of the four parts `scenario`, `steps`, `data`, `expected` in the
+     spec entry's `confidence` and `remarks` maps (`data` rates the values the steps
+     assign, since Test Data stays `-`). The renderer refuses a missing part,
+     or a Medium / Low part with no remark.
+   Polish wording per TC through the spec, never by hand-edit
    of generated files. Wording follows the **tc-style contract**
    (`.claude/skills/tc-style/SKILL.md`): short action steps, `**bold**`
    element names/values, hyphens never em/en dashes; Test Data stays `-`
@@ -61,12 +77,15 @@ violation no matter how it is justified.
    first cut).
 2.5 **Grade loop (tc-rubric "Step 3.5")** — `py tools/eval_rubric.py --flow
    <id> --round 1 --pack`, four judge subagents, merge. The improver's patch
-   applies to the run-record script's wording tables, never to rendered
+   applies to the spec's entries, never to rendered
    files; re-render with `--force`, re-seal, `--round 2`. Round 2 packs carry
    forward the round 1 verdicts of every test case whose sealed content is
    unchanged; a lens whose pack says *Nothing to judge for this lens this
    round* needs no subagent. Never write or edit a `.carried.json` yourself.
-   Report the delta. The gate is `--round <current> --strict`, where
+   Report the delta. Then reconcile the spec's `confidence` and `remarks`
+   with round-2 lens A (tc-style R7); a level or remark that changes means
+   re-render with `--force`, re-seal, `--round 2 --pack` again. The gate is
+   `--round <current> --strict`, where
    current is round 2 unless round 2 regressed and round 1 was restored, in
    which case round 1. `wiki next` names the round (`py
    tools/eval_rubric.py --flow <stem> --round <current> --strict`). A merge
@@ -92,7 +111,7 @@ violation no matter how it is justified.
   render a flow whose journey touches any story still at `proposed`.
 - **After any coverage re-confirmation that touches a member story, re-render
   the UAT scope with `--force`** (e.g.
-  `py tools/render_production_monitoring_uat.py --force`): coverage_map lives
+  `py tools/render_uat.py --flow <FLOW-ID> --force`): coverage_map lives
   outside AC fragment pins, so plain byte-stability would preserve the old
   element lists. The renderer's COVMAP pins make `cascade` flag exactly the
   affected journey TCs stale; `--force` then re-derives them, and `seal`
@@ -102,6 +121,16 @@ violation no matter how it is justified.
   (their pinned `#JNN` fragment hashes change) — regenerate, don't patch.
 - Superseding old-style flow TCs is a human retirement
   (`wiki retire ... --reason superseded`), L5-checked, never automatic.
+- You reword in the spec and re-render under your own commit. `wiki tc edit`
+  is the human's own edit (the app's Save): from the command line, only when
+  the human dictates the exact text and tells you to save it under their
+  name. Never use it for wording you composed.
+- Rewriting a part reopens its doubt; never raise a level. A `confidence`
+  level in the spec only stays or goes down: the renderer refuses a raise and
+  has no flag for it. A part rises to High only through a human answer on a
+  doubts card (`tc-resolve`), even when you rewrote it with that answer. In
+  UAT the `data` part rates the values in the steps, so rewriting `steps`
+  reopens both.
 
 ## Red flags — STOP
 
@@ -111,6 +140,11 @@ violation no matter how it is justified.
   flow; take it back to tc-align + human assert. Stop.
 - `eval_golden` prints segmentation MISMATCH but you are calling it done →
   entries and active UAT TCs are not 1:1. Stop.
+- About to copy `render_uat.py` for a new flow → write
+  `tools/uat_specs/<FLOW-ID>.yaml` instead. Stop.
+- A `confidence` level goes up in your spec diff, or `render_uat` printed
+  **REFUSED: confidence raised without a human answer** → only a human answer
+  raises a level. Put the level back and take the doubt to `tc-resolve`. Stop.
 
 ## Not this skill
 

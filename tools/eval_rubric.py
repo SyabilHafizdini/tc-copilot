@@ -266,7 +266,7 @@ def scope_score(t1, t2, blend):
 def _tc_records(concepts, story_rel, kind=None):
     """(fm, body) for every ACTIVE test case generated from `story_rel`.
 
-    `generated_from` (written by render_sit.py) carries prd_version,
+    `generated_from` (written by render_sit.py) carries prd_versions,
     figma_hashes, wiki_commit and generator_version - NOT a story ref. Story
     membership is instead read the way tools/wiki_suite.py already does it
     (see _subgroup_of/tc_sort_key there): resolve every `covers` ref and match
@@ -278,7 +278,8 @@ def _tc_records(concepts, story_rel, kind=None):
     that kind, the rule wiki_rubric.scope_tc_rels applies for export, --diff
     and `wiki next`: a story's set must not move when its flow's UAT chain
     is re-rendered. A test case without a `kind` key is kept (legacy
-    fixtures); kind=None keeps every kind.
+    fixtures); kind=None applies no kind filter (the story-scope rule below
+    still leaves a UAT test case to its flow).
     """
     from wiki import resolve_ref
     out = []
@@ -292,6 +293,14 @@ def _tc_records(concepts, story_rel, kind=None):
         covers = fm.get("covers") or []
         if story_rel and not any(
                 resolve_ref(ref)[0] == story_rel for ref in covers):
+            continue
+        # A UAT test case covers a story AC as well as its flow's journey
+        # entry, so it matches both scopes. It is measured under the FLOW,
+        # whose scenario model defines the items it names (SC-MAIN, SC-ALT-nn).
+        # In a story scope it would be scored against a model that does not
+        # define them (T1.1 band 1, UNKNOWN COVERAGE ITEM) and would drag the
+        # story's score down for no defect of its own.
+        if (story_rel or "").startswith("stories/") and fm.get("kind") == "uat":
             continue
         rec = dict(fm)
         rec["body"] = body or ""
@@ -390,8 +399,13 @@ def score_scope(kind, scope_id, judgments=None, load_all=None,
         "br_ids": {r.get("id") for r in fm.get("business_rules") or []},
         # A flow has no ACs and no business rules - its test basis is the
         # asserted journey (wiki.py fragment_ids treats `journey` the same way).
-        "journey_ids": {j.get("id") for j in fm.get("journey") or []
-                        if isinstance(j, dict)},
+        # ... and its branches: tc-generate-uat adds the flow branch ref to
+        # `covers` where a journey entry realises one (wiki.py fragment_ids
+        # treats `branches` as a fragment key too, so lint L2 accepts it).
+        "journey_ids": ({j.get("id") for j in fm.get("journey") or []
+                         if isinstance(j, dict)}
+                        | {b.get("id") for b in fm.get("branches") or []
+                           if isinstance(b, dict)}),
         "story_rel": rel,
         "technique_fit": rub.get("technique_fit") or {},
         "kind_of": {i.get("id"): i.get("kind") for i in items},
@@ -674,6 +688,12 @@ def main(argv=None):
         return 0
 
     if "--apply-patch" in argv:
+        # The one branch that writes project content (a tracked sit_spec), and
+        # the render it then asks for is refused on schema 1: refuse here,
+        # before anything is written. Scoring below stays ungated: it only
+        # reads the wiki and writes under the git-ignored build/rubric/.
+        from wiki import load_manifest, refuse_if_schema1
+        refuse_if_schema1(load_manifest(), "eval_rubric")
         if kind != "story":
             sys.exit("eval_rubric --apply-patch: only SIT specs "
                      "(tools/sit_specs/<STORY>.yaml) are patchable; a flow's "

@@ -14,14 +14,18 @@ say it, do not say it.
    `{phase, banners, rows}`.
 2. Report, in this order and nothing else:
    - **Where you are** — `phase.label` (`n/3`) plus the story/TC counts.
-   - **Blockers first** — every banner, verbatim in meaning: a staged PRD,
-     a card awaiting an answer, hand-edit drift, files in
+   - **Blockers first** - every banner, verbatim in meaning: a staged PRD
+     (the banner names which PRD), a card awaiting an answer, hand-edit drift, files in
      `PUT_FILES_HERE/`. Banners outrank rows: they block everything after
      them.
    - **The one next thing** — the first row's `state`, its `command`, and
      the `skill` that owns it. List the remaining rows compactly (one line
      each) so the human can pick a different scope.
 3. Offer to invoke the owning skill. Do not invoke it without a yes.
+
+If `next` refuses because the manifest is schema 1, report the refusal and
+stop. `migrate-prds` is human-gated (`run-tc-copilot`): the human chooses the
+PRD id and title and tells you to run it. Never run it to unblock yourself.
 
 ## When the human states a goal instead of asking where they are
 
@@ -38,8 +42,9 @@ Map intent to owner, then confirm against real state before acting:
 | "retire this TC", "someone hand-edited a TC" | `tc-lifecycle` |
 | "new PRD version", "what changed" | `tc-change-report` |
 | "that definition/rule is wrong" (no new PRD) | `tc-correct` |
+| "resolve doubts", "answer the AI's questions", "why is this Low" | `tc-resolve` |
 | "run the platform", "is it healthy", "where does X live" | `run-tc-copilot` |
-| "re-word this test case" | `tc-style` |
+| "re-word this test case" | `tc-style` (the agent rewrites the spec and re-renders), or edit it yourself in the app's Test Cases page |
 | "grade / score / judge these test cases", "how good is the SIT set", "rubric", "29119" | `tc-evaluate` (existing set) or `tc-rubric` inside `tc-generate-sit`/`-uat` (while generating) |
 | "test model", "coverage items", "C = N/T", "the gap report", "improve round" | `tc-rubric` |
 

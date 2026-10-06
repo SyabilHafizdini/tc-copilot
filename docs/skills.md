@@ -16,6 +16,7 @@ guide.
 | `tc-style` | Loaded when writing test-case text: the wording contract | [guide](skills/tc-style.md) |
 | `tc-suite-author` | Filter generated test cases into a suite and export the workbook | [guide](skills/tc-suite-author.md) |
 | `tc-correct` | You spotted an error in an asserted definition, rule or AC | [guide](skills/tc-correct.md) |
+| `tc-resolve` | The AI is unsure about parts of a test case (Medium / Low): see its questions, answer them on a card, raise a level | [guide](skills/tc-resolve.md) |
 | `tc-change-report` | A new PRD version arrived | [guide](skills/tc-change-report.md) |
 | `tc-lifecycle` | Retire, void, un-retire a test case, or resolve a hand-edit | [guide](skills/tc-lifecycle.md) |
 | `run-tc-copilot` | Run the platform: health check, CLI, exports, where artifacts live | [guide](skills/run-tc-copilot.md) |
@@ -31,9 +32,20 @@ tc-intake   tc-align    tc-generate-sit       tc-suite-author
 
 Corrections (`tc-correct`), new PRD versions (`tc-change-report`) and
 retirements (`tc-lifecycle`) feed back into the loop without regenerating
-anything until you say so. The workbook arrives twice: a labelled draft right
-after the first seal, and the graded final with a change log when the rubric
-round finishes.
+anything until you say so. The AI's doubts, every Medium or Low confidence
+part of a test case, are grouped into questions you answer on a card; only
+your answer raises a part to High (`tc-resolve`). The workbook arrives twice:
+a labelled draft right after the first seal, and the graded final with a
+change log when the rubric round finishes.
+
+In the operator app (`py tools/wiki.py app`) you can review every test case in
+the workbook's columns and reword one field yourself (the Test Cases page; Save
+runs `wiki tc edit` under your name), and open a compiled workbook as testers
+receive it, with the rows that changed since the compile marked (the Workbook
+page). The app's docked chat is Off by default and is switched on under
+Settings. A project written before the PRD registry is converted once with
+`py tools/wiki.py migrate-prds`, at your instruction. All of these are in
+[cli.md](cli.md).
 
 ## Verify the base
 

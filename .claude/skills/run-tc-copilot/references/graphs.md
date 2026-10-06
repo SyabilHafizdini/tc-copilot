@@ -60,7 +60,7 @@ Start-Process build\rtm\graphs\traceability.html   # then click VIEW → Indente
 Answers "if I change this, what needs review?" **before** the change, using only
 existing links + manifest pins. Read-only, LLM-free, no commit. `<ref>` is a
 concept or fragment: `US-XXXX`, `stories/US-XXXX#BR-XXXX-04`,
-`sources/prd/4-1-1-1` (or its id `prd#4-1-1-1`), `stories/US-XXXX#1.1.3.1.1-AC19`.
+`sources/prd/<prd-id>/4-1-1-1` (or its id `prd#<prd-id>/4-1-1-1`), `stories/US-XXXX#1.1.3.1.1-AC19`.
 
 It walks dependency edges backwards (covers, verifies_rules, derived_from,
 uses_terms, defined_in, journey) plus the manifest's `fragment_pins`/
@@ -78,7 +78,7 @@ what a human must check:
   covers/verifies edge is currently pinned); fires if a pin goes missing.
 
 Verified on a real run: `impact stories/US-XXXX#BR-XXXX-04` → 3 TCs, all
-`cascade: stale` (matches their pins exactly); `impact sources/prd/4-1-1-1` →
+`cascade: stale` (matches their pins exactly); `impact sources/prd/<prd-id>/4-1-1-1` →
 the pinning story `needs-review`, 0 TCs auto-flagged (correct: a source change
 never directly stales a TC). Note `--json` for agent consumption. Impl:
 `tools/wiki_impact.py`, reads frontmatter + manifest only. It reports links that

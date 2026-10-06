@@ -8,21 +8,27 @@ Usage:
   py tools/wiki.py <command> [args]
 
 Commands:
-  ingest-prd            inputs/prd/vN/*.{pdf,docx,md} -> sources/prd/ (first
-                        version adopts; a NEWER version stages + writes a
-                        change report)
+  ingest-prd [--prd <id>] [--title "<title>"]
+                        inputs/prd/<id>/vN/*.{pdf,docx,md} -> sources/prd/<id>/
+                        (a new id needs --title; the first version adopts, a
+                        NEWER version stages + writes that PRD's change
+                        report; --prd is optional with exactly one PRD)
   ingest-figma          inputs/figma/*.png  -> sources/figma/*.md (+ manifest)
   ingest-decks          inputs/decks/*.pptx -> sources/decks/<deck>/slide-NN.md
   ingest-reference      inputs/reference/** -> sources/reference/*.md
                         (one Reference Document concept per file; material
                         with no acceptance criteria)
-  triage [--apply] [--prd-version N]
-                        PUT_FILES_HERE/* -> inputs/{prd/vN,figma,decks}/ by file
-                        type; dry-run unless --apply. Refuses on an unstable
-                        Figma page name or an occupied PRD version
+  triage [--apply] [--card <card>] [--prd <id>] [--prd-title "<title>"]
+         [--prd-version N]
+                        PUT_FILES_HERE/* -> inputs/{prd/<id>/vN,figma,decks}/ by
+                        file type; dry-run unless --apply. Refuses on an
+                        unstable Figma page name, a PRD file with no PRD or
+                        version answer, or an occupied PRD version (--prd is
+                        optional with exactly one registered PRD; a new id
+                        also needs --prd-title)
   index                 regenerate all index.md files from frontmatter
   manifest              rebuild manifest.json from frontmatter
-  lint                  L1-L14 / W1-W7; exit 1 on any L error
+  lint                  L1-L15 / W1-W10; exit 1 on any L error
   status                project status table
   next [--story <id>] [--brief] [--json]   what to DO next per story/flow: the
                         literal next command + the skill that owns it (read-only;
@@ -39,6 +45,23 @@ Commands:
                         draft: DRAFT r0 workbook + diff snapshot right after seal;
                         final: refuses without a current strict score, fills Change Log
   rtm                   build/rtm/{matrix.md,trace.md,graph.json,gaps.md} (spec §11.3)
+  doubts list [--story <id>] [--all] [--ungrouped] [--json]
+                        every Medium/Low confidence part as a doubt, grouped under
+                        the story's root questions (read-only; no LLM)
+  doubts card --story <id> [--question Q1,Q2] [--top N]
+                        deterministic card of questions for a human to answer
+                        (build/cards/doubts-<id>-NNN.json; commits nothing)
+  doubts answer --card <path> --by <user> [--story <id>]
+                        turn an answered doubts card into asserted Resolutions
+                        (all or nothing; refuses a stale or unanswerable card)
+  doubts observe --workbook <xlsx> --by <tester>
+                        record the Observation column of the workbook's AI Doubts
+                        sheet; it becomes the proposed answer on the next card
+  tc edit <id> --field <field> --from <path> --by <human>
+                        HUMAN rewording of one field of one test case, in its
+                        spec (title objective steps expected priority; SIT also
+                        data post pre_extra); forced render + seal + one commit,
+                        rolled back on any refusal
   impact <ref> [--json]  downstream impact of a concept/fragment (read-only; no LLM)
   coverage --story <id> [--propose] [--force]   Component x AC matrix + gaps -> build/rtm/
   testmodel --story <id> | --flow <id> [--propose [--force]]
@@ -51,8 +74,13 @@ Commands:
   void-ac <frag> --by <u> --caused-by <src> --cause-version <n>
   unretire <tc-id> --by <u>         resurrection permit (spec §7.4-4)
   release <tc-id> --by <u> | revert <tc-id>   drift resolution (spec §7.4-5)
-  approve-cr CR-NNN --by <u> | reject-cr CR-NNN --by <u>    (spec §12.3)
-  diff --prd            adopted vs staged section diff
+  approve-cr CR-NNN --by <u> [--prd <id>] | reject-cr CR-NNN --by <u> [--prd <id>]
+  diff --prd [<id>]     adopted vs staged section diff for one PRD
+                        (--prd <id> is required once two PRDs are registered)
+  migrate-prds [--id <id> --title "<title>"]
+                        convert a schema-1 project to the PRD registry
+                        (schema 2) in one commit; no arguments when no PRD
+                        was ever ingested. Idempotent
   migrate-ids           rewrite all TC IDs to the (edited) config template (§10)
   migrate-provenance [--apply]
                         backfill `provenance` on stories written before it was
@@ -195,11 +223,17 @@ def read_concept(path):
         print(f"[frontmatter parse error] {path}: {e}", file=sys.stderr)
         return None, m.group(2)
 
+def concept_text(fm, body):
+    """The exact text write_concept writes. Exposed so a migration can tell,
+    before it writes anything, what a rewrite will look like."""
+    fm_text = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True, width=100)
+    return f"---\n{fm_text}---\n{body}"
+
+
 def write_concept(path, fm, body):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    fm_text = yaml.safe_dump(fm, sort_keys=False, allow_unicode=True, width=100)
-    path.write_text(f"---\n{fm_text}---\n{body}", encoding="utf-8", newline="\n")
+    path.write_text(concept_text(fm, body), encoding="utf-8", newline="\n")
 
 def all_concepts():
     """Yield (relpath-no-ext, fm, body, abspath) for every concept file."""
@@ -237,6 +271,19 @@ def arg_after(args, flag):
     except (ValueError, IndexError):
         sys.exit(f"missing required {flag} <value>")
 
+def signature_problem(by):
+    """Why `by` cannot be a human's signature on a human-gated command, or
+    None: it is written into the log, the commit message and the files, so it
+    is one line of text and never the next flag swallowed as a value."""
+    if not isinstance(by, str) or not by.strip():
+        return "it is empty"
+    if "\n" in by or "\r" in by:
+        return "it spans more than one line"
+    if by.startswith("--"):
+        return f"'{by}' is a flag, not a name"
+    return None
+
+
 def fragment_ids(fm):
     ids = set()
     for key in ("acceptance_criteria", "business_rules", "components",
@@ -268,13 +315,227 @@ def covmap_hash(story_fm, frag):
 def load_manifest():
     if MANIFEST.exists():
         return json.loads(MANIFEST.read_text(encoding="utf-8"))
-    return {"schema_version": 1, "adopted_prd_version": None, "staged_prd_version": None,
-            "id_config_frozen": False, "counters": {}, "sources": {}, "concepts": {},
-            "bindings": {}, "tc_hashes": {}, "edges": []}
+    return {"schema_version": 2, "prds": {}, "id_config_frozen": False,
+            "counters": {}, "sources": {}, "concepts": {}, "bindings": {},
+            "tc_hashes": {}, "edges": []}
 
 def save_manifest(m):
     MANIFEST.write_text(json.dumps(m, indent=2, ensure_ascii=False) + "\n",
                         encoding="utf-8", newline="\n")
+
+# ---------------------------------------------------------------- PRD registry
+# Manifest schema 2 keeps one entry per PRD under `prds`. Everything that needs
+# an adopted or staged version reads it through the functions below; no other
+# module touches manifest["prds"] or the schema-1 keys.
+
+PRD_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
+
+
+def prd_id_problem(prd_id):
+    """Why `prd_id` cannot name a PRD, or None. One rule for ingest-prd,
+    triage and migrate-prds: the id becomes a directory under inputs/prd/,
+    sources/prd/, staging/ and changereports/."""
+    if not PRD_ID_RE.fullmatch(prd_id):
+        return (f"'{prd_id}' is not a PRD id: use a lowercase-hyphen slug "
+                f"matching {PRD_ID_RE.pattern} (for example rental-application)")
+    if re.fullmatch(r"v\d+", prd_id):
+        return (f"'{prd_id}' collides with the version directory names (vN) "
+                f"under inputs/prd/. Pick another id.")
+    if prd_id in RESERVED_SLUGS:
+        return (f"'{prd_id}' is a reserved name ({', '.join(RESERVED_SLUGS)}): "
+                f"`wiki index` writes {prd_id}.md files and concept discovery "
+                f"skips them. Pick another id.")
+    return None
+
+
+def prd_registry(manifest):
+    """{prd id: {"title", "adopted_version", "staged_version"}}."""
+    return manifest.get("prds") or {}
+
+
+_KEEP = object()
+
+
+def set_prd_versions(manifest, prd_id, *, adopted=_KEEP, staged=_KEEP,
+                     title=None):
+    """The one writer of a registry entry. Creates the entry (with `title`)
+    when the PRD is new; a version left out keeps its value."""
+    entry = manifest.setdefault("prds", {}).setdefault(
+        prd_id, {"title": title or "", "adopted_version": None,
+                 "staged_version": None})
+    if adopted is not _KEEP:
+        entry["adopted_version"] = adopted
+    if staged is not _KEEP:
+        entry["staged_version"] = staged
+    return entry
+
+
+def adopted_version(manifest, prd_id):
+    return (prd_registry(manifest).get(prd_id) or {}).get("adopted_version")
+
+
+def staged_version(manifest, prd_id):
+    return (prd_registry(manifest).get(prd_id) or {}).get("staged_version")
+
+
+def source_pin(entry):
+    """The value a story's source_pins records for a source: its content (or
+    image) hash, plus a marker once a PRD section has been removed by an
+    approved version. `wiki assert`, the cascade and lint all compare through
+    this, so a removal is flagged once, like a modified section, and a human
+    re-assert (which re-pins) settles it. `entry` is a manifest source entry
+    or a section's frontmatter."""
+    h = entry.get("content_hash") or entry.get("image_hash")
+    if h and entry.get("removed_in"):
+        return f"{h}@removed-v{entry['removed_in']}"
+    return h
+
+
+def reports_for_prd(prd_id):
+    """Frontmatter of every change report of one PRD, oldest first. Reads the
+    reports on disk, so it does not depend on what the registry says."""
+    base = ROOT / "changereports" / prd_id
+    out = []
+    for p in sorted(base.glob("CR-*.md")) if base.exists() else []:
+        fm, _b = read_concept(p)
+        if fm:
+            out.append(fm)
+    return sorted(out, key=lambda f: int(str(f.get("id", "CR-0"))[3:] or 0))
+
+
+class ManifestError(ValueError):
+    """manifest.json holds something no command can act on."""
+
+
+def is_schema1(manifest):
+    """A manifest written before the PRD registry existed. One with no
+    schema_version at all is schema 1 too. A schema_version that is not a
+    whole number raises ManifestError: it is neither layout."""
+    v = manifest.get("schema_version")
+    if v is None:
+        return True
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ManifestError(
+            f"manifest.json has schema_version {v!r}, which is not a whole "
+            f"number (1 or 2).\n  manifest.json is a generated file: restore "
+            f"it from git (git restore manifest.json) and re-run.")
+    return v < 2
+
+
+def schema1_message():
+    """What a schema-1 project is told, in one place: every refusal prints it
+    after `<command> refused: `, and the operator app shows it as its notice."""
+    return ("manifest.json is schema 1 (one unnamed PRD).\n"
+            "  This platform keeps a PRD registry (schema 2). Convert the "
+            "project once, at the human's instruction; the human chooses the "
+            "id and title:\n"
+            '    py tools/wiki.py migrate-prds --id <id> --title "<title>"\n'
+            "  A project that never ingested a PRD takes no arguments:\n"
+            "    py tools/wiki.py migrate-prds")
+
+
+def refuse_if_schema1(manifest, command):
+    """There is no dual-layout mode: a schema-1 project is converted once,
+    by `migrate-prds`, and every other command refuses until it is."""
+    try:
+        schema1 = is_schema1(manifest)
+    except ManifestError as e:
+        sys.exit(f"{command} refused: {e}")
+    if schema1:
+        sys.exit(f"{command} refused: {schema1_message()}")
+
+
+def resolve_prd_arg(manifest, args, *, allow_new=False):
+    """The PRD a command acts on. `--prd <id>` names it; with exactly one
+    registered PRD the flag is optional; with several, omitting it is refused
+    and the refusal lists the ids. A bare `--prd` (no value) counts as
+    omitted, so the pre-registry spelling `diff --prd` keeps working."""
+    reg = prd_registry(manifest)
+    ids = sorted(reg)
+    listing = ", ".join(ids) or "(none)"
+    given = None
+    if "--prd" in args:
+        i = args.index("--prd")
+        if i + 1 < len(args) and not args[i + 1].startswith("--"):
+            given = args[i + 1]
+    if given is None:
+        if len(ids) == 1:
+            return ids[0]
+        if not ids:
+            sys.exit("no PRD is registered. Register one with:\n"
+                     '  py tools/wiki.py ingest-prd --prd <id> --title "<title>"')
+        sys.exit(f"--prd <id> is required: {len(ids)} PRDs are registered "
+                 f"({listing}).\n  Re-run with --prd <one of them>.")
+    # A registered id is never re-judged: the rule is for names being made.
+    problem = prd_id_problem(given) if given not in reg else None
+    if problem:
+        sys.exit(f"--prd {problem}")
+    if given not in reg and not allow_new:
+        sys.exit(f"--prd '{given}' is not a registered PRD. Registered: "
+                 f"{listing}.\n  A new PRD is registered by:\n"
+                 f'    py tools/wiki.py ingest-prd --prd {given} --title "<title>"')
+    return given
+
+
+def prd_id_of_ref(ref):
+    """'/sources/prd/<id>/<slug>.md[#frag]' (or its rel) -> '<id>'. A flat
+    'sources/prd/<slug>' is the schema-1 layout and has no id: None."""
+    parts = resolve_ref(ref)[0].split("/")
+    if len(parts) >= 4 and parts[0] == "sources" and parts[1] == "prd":
+        return parts[2]
+    return None
+
+
+def prd_versions_for(story_fms, manifest):
+    """{prd id: adopted version} for the PRDs these stories cite through
+    derived_from, sorted by id. A story citing no PRD contributes nothing."""
+    ids = set()
+    for fm in story_fms:
+        refs = (fm or {}).get("derived_from") or []
+        if isinstance(refs, str):
+            refs = [refs]
+        for ref in refs:
+            pid = prd_id_of_ref(ref)
+            if pid:
+                ids.add(pid)
+    return {pid: adopted_version(manifest, pid) for pid in sorted(ids)}
+
+
+def prd_version_text(prd_id, version, manifest=None):
+    """`<id> vN` for one PRD. Never `vNone`: a PRD with nothing adopted says
+    so, and (when a manifest is given) one missing from the registry does."""
+    if manifest is not None and prd_id not in prd_registry(manifest):
+        return f"{prd_id} (unregistered)"
+    if version is None:
+        return f"{prd_id} (no adopted version)"
+    return f"{prd_id} v{version}"
+
+
+def prd_label(prd_versions, manifest=None):
+    """Traceability-line text for a test case's prd_versions map."""
+    if not prd_versions:
+        return "no PRD"
+    return "PRD " + ", ".join(prd_version_text(pid, v, manifest)
+                              for pid, v in sorted(prd_versions.items()))
+
+
+def prd_rows(manifest):
+    """[{id, title, adopted, staged}] sorted by id - the shape /api/state
+    serves and every per-PRD report iterates."""
+    return [{"id": pid, "title": e.get("title") or pid,
+             "adopted": e.get("adopted_version"),
+             "staged": e.get("staged_version")}
+            for pid, e in sorted(prd_registry(manifest).items())]
+
+
+def prd_summary(manifest):
+    """One line naming every PRD and its versions, for report headers."""
+    rows = prd_rows(manifest)
+    if not rows:
+        return "no PRD"
+    return ", ".join(
+        prd_version_text(r["id"], r["adopted"])
+        + (f" (v{r['staged']} staged)" if r["staged"] else "") for r in rows)
 
 def agent_commit(msg, no_commit=False):
     if no_commit or "--no-commit" in sys.argv:
@@ -508,19 +769,94 @@ def parse_prd(path):
         stream = extract_md_stream(path)
     return chunk_sections(stream)
 
-def latest_prd_input():
-    versions = sorted((ROOT / "inputs/prd").glob("v*"), key=lambda p: int(p.name[1:]))
+_VERSION_DIR = re.compile(r"^v([1-9]\d*)$")
+RESERVED_SLUGS = ("index", "log")
+
+
+def latest_prd_input(prd_id):
+    """(version, document) of the newest inputs/prd/<id>/vN/. Only `v` plus a
+    number with no leading zero is a version directory; any other name is not
+    one. A version directory must hold exactly one pdf/docx/md document."""
+    base = ROOT / "inputs/prd" / prd_id
+    versions = sorted((p for p in base.glob("v*")
+                       if p.is_dir() and _VERSION_DIR.match(p.name)),
+                      key=lambda p: int(p.name[1:]))
     if not versions:
-        sys.exit("no inputs/prd/vN directory")
+        sys.exit(f"ingest-prd: no inputs/prd/{prd_id}/vN directory (N is a "
+                 f"whole number from 1, no leading zero) - place the document "
+                 f"under inputs/prd/{prd_id}/v1/ first")
     vdir = versions[-1]
-    files = (list(vdir.glob("*.pdf")) + list(vdir.glob("*.docx"))
-             + list(vdir.glob("*.md")))
+    files = sorted(p for ext in ("*.pdf", "*.docx", "*.md") for p in vdir.glob(ext))
     if not files:
         sys.exit(f"no pdf/docx/md in {vdir}")
+    if len(files) > 1:
+        sys.exit(f"ingest-prd refused: {vdir.relative_to(ROOT).as_posix()} holds "
+                 f"{len(files)} candidate documents, so which one is v"
+                 f"{vdir.name[1:]} is ambiguous:\n" +
+                 "".join(f"    {f.name}\n" for f in files) +
+                 "  Leave exactly one document in the version directory and re-run.")
     return int(vdir.name[1:]), files[0]
 
-def write_prd_sections(sections, version, src_rel, manifest):
-    """Section dicts -> sources/prd/<slug>.md concepts + manifest entries.
+
+def check_unique_slugs(sections, prd_id):
+    """Two sections sharing a slug would silently lose one. Refuses, naming
+    both headings, before anything is written."""
+    by_slug = {}
+    for sec in sections:
+        prior = by_slug.get(sec["slug"])
+        if prior is not None:
+            here = " > ".join(sec["heading_path"]) or sec["title"]
+            there = " > ".join(prior["heading_path"]) or prior["title"]
+            sys.exit(
+                f"ingest refused: two sections both produce the id "
+                f"prd#{prd_id}/{sec['slug']} --\n"
+                f"    {there}\n"
+                f"    {here}\n"
+                f"  One would silently overwrite the other and the section "
+                f"would be lost.\n"
+                f"  Rename one of the headings in the source document so "
+                f"their heading paths differ, then re-run.")
+        by_slug[sec["slug"]] = sec
+
+
+
+def check_prd_sections(sections, prd_id, src_name):
+    """Refuse, before anything is written, a document that would register an
+    empty PRD or lose a section to a reserved file name."""
+    if not sections:
+        sys.exit(f"ingest-prd refused: {src_name} yields no sections, so "
+                 f"there is nothing to adopt or stage for {prd_id}.\n"
+                 f"  Check the document is not empty and its headings are "
+                 f"numbered (pdf/md) or styled Heading 1/2/3 (docx).")
+    check_unique_slugs(sections, prd_id)
+    for sec in sections:
+        if sec["slug"] in RESERVED_SLUGS:
+            heading = " > ".join(sec["heading_path"]) or sec["title"]
+            sys.exit(f"ingest-prd refused: the heading '{heading}' would be "
+                     f"stored as sources/prd/{prd_id}/{sec['slug']}.md, a "
+                     f"reserved file name ({', '.join(RESERVED_SLUGS)}): concept "
+                     f"discovery skips it and `wiki index` overwrites it, so "
+                     f"the section would be lost.\n"
+                     f"  Rename that heading in the source document and re-run.")
+
+def _adopted_hashes(prd_id):
+    """{slug: content_hash} of the sections PRD `prd_id` has adopted and not
+    removed, keyed as a re-parse of the same document would key them (a
+    section an approval aliased is known by its newest also_known_as slug)."""
+    out = {}
+    base = ROOT / "sources/prd" / prd_id
+    for p in sorted(base.glob("*.md")) if base.exists() else []:
+        if p.name in ("index.md", "log.md"):
+            continue
+        fm, _body = read_concept(p)
+        if fm and not fm.get("removed_in"):
+            aka = fm.get("also_known_as") or []
+            out[aka[-1] if aka else p.stem] = fm.get("content_hash")
+    return out
+
+
+def write_prd_sections(sections, version, src_rel, manifest, prd_id):
+    """Section dicts -> sources/prd/<prd_id>/<slug>.md concepts + manifest entries.
 
     The slug is the PERMANENT prd# id, so two sections sharing one is a lost
     section, not a merge: the second write_concept overwrites the first, the
@@ -533,33 +869,18 @@ def write_prd_sections(sections, version, src_rel, manifest):
     input: docx slugs come from the heading PATH, pdf/md slugs from the
     section NUMBER, and either can repeat in a real document.
     """
-    outdir = ROOT / "sources/prd"
-    by_slug = {}
-    for sec in sections:
-        prior = by_slug.get(sec["slug"])
-        if prior is not None:
-            here = " > ".join(sec["heading_path"]) or sec["title"]
-            there = " > ".join(prior["heading_path"]) or prior["title"]
-            sys.exit(
-                f"ingest refused: two sections both produce the id "
-                f"prd#{sec['slug']} --\n"
-                f"    {there}\n"
-                f"    {here}\n"
-                f"  One would silently overwrite the other and the section "
-                f"would be lost.\n"
-                f"  Rename one of the headings in the source document so "
-                f"their heading paths differ, then re-run.")
-        by_slug[sec["slug"]] = sec
-
+    check_unique_slugs(sections, prd_id)
+    outdir = ROOT / "sources/prd" / prd_id
     outdir.mkdir(parents=True, exist_ok=True)
     written = 0
     for sec in sections:
-        sec_id = f"prd#{sec['slug']}"
+        sec_id = f"prd#{prd_id}/{sec['slug']}"
         fm = {
             "type": "PRD Section",
             "id": sec_id,
             "title": (f"{sec['num']} {sec['title']}" if sec["num"] else sec["title"]),
             "description": f"PRD v{version} section: {sec['title']}",
+            "prd": prd_id,
             "prd_version": version,
             "content_hash": sec["content_hash"],
             "source_file": src_rel,
@@ -567,28 +888,93 @@ def write_prd_sections(sections, version, src_rel, manifest):
         }
         write_concept(outdir / f"{sec['slug']}.md", fm, sec["body"] + "\n")
         manifest["sources"][sec_id] = {"content_hash": sec["content_hash"],
-                                       "prd_version": version}
+                                       "prd_version": version, "prd": prd_id}
         written += 1
     return written
 
-def cmd_ingest_prd():
-    version, src_path = latest_prd_input()
+def cmd_ingest_prd(args):
     manifest = load_manifest()
-    adopted = manifest["adopted_prd_version"]
+    prd_id = resolve_prd_arg(manifest, args, allow_new=True)
+    reg = prd_registry(manifest)
+    title = (arg_after(args, "--title") if "--title" in args else "").strip()
+    if prd_id not in reg and not title:
+        sys.exit(
+            f"ingest-prd refused: '{prd_id}' is not a registered PRD and no "
+            f"--title was given.\n"
+            f"  Registered: {', '.join(sorted(reg)) or '(none)'}\n"
+            f"  Register it: py tools/wiki.py ingest-prd --prd {prd_id} "
+            f'--title "<title>"')
+    if prd_id in reg and title:
+        print(f"note: --title ignored; {prd_id} is already registered as "
+              f"'{reg[prd_id].get('title')}'")
+    version, src_path = latest_prd_input(prd_id)
+    adopted = adopted_version(manifest, prd_id)
+    if adopted is not None and version < adopted:
+        sys.exit(
+            f"ingest-prd refused: the newest document for {prd_id} is under "
+            f"inputs/prd/{prd_id}/v{version}/ but v{adopted} is already "
+            f"adopted.\n  Place the new document under "
+            f"inputs/prd/{prd_id}/v{adopted + 1}/ and re-run.")
     src_rel = "/" + src_path.relative_to(ROOT).as_posix()
-    print(f"ingesting {src_path.name} as PRD v{version} ...")
+    print(f"ingesting {src_path.name} as PRD {prd_id} v{version} ...")
     sections = parse_prd(src_path)
-    if adopted in (None, version):
-        written = write_prd_sections(sections, version, src_rel, manifest)
-        manifest["adopted_prd_version"] = version
+    check_prd_sections(sections, prd_id, src_path.name)
+    if adopted == version:
+        # The newest document sits under the ADOPTED version's directory.
+        # Writing it would change adopted content with no change report and
+        # no approval, so it is either the same document or a refusal.
+        if _adopted_hashes(prd_id) == {s["slug"]: s["content_hash"]
+                                       for s in sections}:
+            print(f"PRD {prd_id} v{version} is already adopted and this "
+                  f"document is unchanged; nothing changed")
+            return
+        sys.exit(
+            f"ingest-prd refused: {prd_id} v{version} is already adopted, and "
+            f"{src_rel.lstrip('/')} differs from the adopted sections.\n"
+            f"  Adopted content changes only through an approved change "
+            f"report. Place the changed document under "
+            f"inputs/prd/{prd_id}/v{adopted + 1}/ and re-run.")
+    if adopted is None:
+        written = write_prd_sections(sections, version, src_rel, manifest, prd_id)
+        set_prd_versions(manifest, prd_id, adopted=version, title=title)
         save_manifest(manifest)
-        append_log(f"**Ingestion (agent)**: PRD v{version} -> {written} sections")
+        append_log(f"**Ingestion (agent)**: PRD {prd_id} v{version} -> "
+                   f"{written} sections")
         print(f"wrote {written} PRD Section concepts")
-        agent_commit(f"ingest(prd): v{version} -> {written} sections")
+        agent_commit(f"ingest(prd): {prd_id} v{version} -> {written} sections")
     else:
         # spec §5.1.5: stage + change report; adopted content untouched
-        from wiki_change import stage_prd_version
-        stage_prd_version(sections, version, src_rel, manifest)
+        from wiki_change import stage_prd_version, staging_file
+        reports = [r for r in reports_for_prd(prd_id)
+                   if r.get("to_version") == version]
+        pending = [r for r in reports if r.get("status") == "pending"]
+        rejected = [r for r in reports if r.get("status") == "rejected"]
+        if pending or rejected:
+            sf = staging_file(prd_id, version)
+            staged_sections = (json.loads(sf.read_text(encoding="utf-8"))["sections"]
+                               if sf.exists() else None)
+            same = staged_sections == json.loads(json.dumps(sections))
+            if pending:
+                cr_id = pending[-1]["id"]
+                if not same:
+                    sys.exit(
+                        f"ingest-prd refused: {prd_id} v{version} is already "
+                        f"staged with pending {cr_id}, and this document "
+                        f"differs from what was staged.\n  Approve or reject "
+                        f"{cr_id}, or place the changed document under "
+                        f"inputs/prd/{prd_id}/v{version + 1}/ and re-run.")
+                print(f"PRD {prd_id} v{version} is already staged as {cr_id} "
+                      f"(pending); nothing changed")
+                return
+            cr_id = rejected[-1]["id"]
+            if same:
+                print(f"PRD {prd_id} v{version} was rejected in {cr_id} and "
+                      f"this document is unchanged; nothing changed. Submit a "
+                      f"corrected document to stage it again.")
+                return
+            print(f"note: {prd_id} v{version} was rejected in {cr_id}; this "
+                  f"changed document is staged as a new report")
+        stage_prd_version(sections, version, src_rel, manifest, prd_id)
 
 def cmd_ingest_figma():
     manifest = load_manifest()
@@ -812,16 +1198,33 @@ def cmd_ingest_reference():
 
 # ---------------------------------------------------------------- index / manifest
 
-def cmd_index():
+def _index_dirs():
+    """Every directory write_indexes writes an index.md into, as it stands."""
     dirs = []
     for d in CONCEPT_DIRS:
         if (ROOT / d).exists():
             dirs.append(d)
+    prd_base = ROOT / "sources/prd"
+    if prd_base.exists():
+        dirs += [p.relative_to(ROOT).as_posix()
+                 for p in sorted(prd_base.iterdir()) if p.is_dir()]
     for sub in sorted((ROOT / "testcases").rglob("*")) if (ROOT / "testcases").exists() else []:
         if sub.is_dir():
             dirs.append(sub.relative_to(ROOT).as_posix())
     if (ROOT / "testcases").exists():
         dirs.append("testcases")
+    return dirs
+
+
+def index_paths():
+    """Every index.md write_indexes would write right now, the root one
+    included. A command that must be able to put the tree back (tc edit,
+    migrate-prds) snapshots exactly these before `index` runs."""
+    return [ROOT / d / "index.md" for d in _index_dirs()] + [ROOT / "index.md"]
+
+
+def write_indexes():
+    dirs = _index_dirs()
     for d in dirs:
         base = ROOT / d
         entries = []
@@ -850,11 +1253,16 @@ def cmd_index():
         if (ROOT / d / "index.md").exists():
             root_body += f"- [{d}](/{d}/index.md)\n"
     (ROOT / "index.md").write_text(root_body, encoding="utf-8", newline="\n")
+
+
+def cmd_index():
+    write_indexes()
     print("index.md files regenerated")
     agent_commit("index: regenerate")
 
-def cmd_manifest():
-    m = load_manifest()
+def rebuild_manifest(m):
+    """Rebuild concepts, edges and the PRD/Figma source entries of `m` from
+    frontmatter. Mutates and returns `m`; never saves or commits."""
     if m.get("id_config_frozen") and not m.get("id_format"):
         # backfill the frozen format record (pre-dates the id_format field);
         # assumes config.yaml has not been tampered with since the freeze
@@ -870,8 +1278,13 @@ def cmd_manifest():
             entry["fragment_hashes"] = fr
         m["concepts"][rel] = entry
         if fm.get("type") == "PRD Section":
-            m["sources"][fm["id"]] = {"content_hash": fm["content_hash"],
-                                      "prd_version": fm["prd_version"]}
+            src = {"content_hash": fm["content_hash"],
+                   "prd_version": fm["prd_version"]}
+            if fm.get("prd"):
+                src["prd"] = fm["prd"]
+            if fm.get("removed_in"):
+                src["removed_in"] = fm["removed_in"]
+            m["sources"][fm["id"]] = src
         if fm.get("type") == "Figma Page":
             m["sources"][fm["id"]] = {"image_hash": fm["image_hash"],
                                       "version": fm.get("version", 1)}
@@ -889,6 +1302,11 @@ def cmd_manifest():
                 tgt, frag = resolve_ref(e["ref"])
                 m["edges"].append([rel, "journey",
                                    tgt + (f"#{frag}" if frag else "")])
+    return m
+
+
+def cmd_manifest():
+    m = rebuild_manifest(load_manifest())
     save_manifest(m)
     print(f"manifest: {len(m['concepts'])} concepts, {len(m['edges'])} edges")
     agent_commit("manifest: rebuild")
@@ -967,7 +1385,7 @@ def w7_warnings(concepts):
     return out
 
 
-def l13_errors(concepts):
+def l13_errors(concepts, manifest=None):
     """L13: every User Story DECLARES how its acceptance criteria came to
     exist, and the declaration must match what the story carries.
 
@@ -980,6 +1398,7 @@ def l13_errors(concepts):
     story level (wiki_rtm), so nothing downstream can tell them apart -- this
     rule is the only place the difference is recorded.
     """
+    registered = (set(prd_registry(manifest)) if manifest is not None else None)
     errors = []
     resolved = {}
     for rel, (fm, _body) in concepts.items():
@@ -1036,6 +1455,26 @@ def l13_errors(concepts):
                     f"alongside a PRD section, never instead of one; if there "
                     f"is no PRD behind these ACs, declare 'human-stated'")
                 continue
+            # A PRD ref must sit under a registered PRD's directory. Checked
+            # only when a manifest is given: the pure callers pass concepts
+            # alone, and lint on a schema-1 manifest has no registry to ask.
+            if registered is not None:
+                listing = ", ".join(sorted(registered)) or "none"
+                for r in fm.get("derived_from") or []:
+                    if not resolve_ref(r)[0].startswith("sources/prd/"):
+                        continue
+                    pid = prd_id_of_ref(r)
+                    if pid is None:
+                        errors.append(
+                            f"L13 {rel}: derived_from {r} is not under a PRD "
+                            f"directory -- PRD sections live at "
+                            f"sources/prd/<prd-id>/<section>.md")
+                    elif pid not in registered:
+                        errors.append(
+                            f"L13 {rel}: derived_from {r} cites PRD '{pid}', "
+                            f"which is not registered (registered: {listing}) "
+                            f"-- fix the ref, or register the PRD with "
+                            f"ingest-prd --prd {pid} --title \"<title>\"")
 
         # AC shape is not a provenance question -- ids are needed for test case
         # covers: refs, the coverage map, and fragment hashing regardless of source.
@@ -1290,7 +1729,7 @@ def cmd_lint():
         if fm.get("type") == "User Story" and fm.get("status") == "aligned":
             for src, pin in (fm.get("source_pins") or {}).items():
                 cur = manifest["sources"].get(src, {})
-                cur_hash = cur.get("content_hash") or cur.get("image_hash")
+                cur_hash = source_pin(cur)
                 if cur_hash and cur_hash != pin:
                     warns.append(f"W2 {rel}: aligned but pinned {src} hash differs")
             for t in fm.get("uses_terms") or []:
@@ -1306,10 +1745,22 @@ def cmd_lint():
             if tgt not in concepts and not (ROOT / path.lstrip("/")).exists():
                 warns.append(f"W1 {rel}: broken prose link {path}")
 
-    errors.extend(l13_errors(concepts))
+    errors.extend(l13_errors(concepts,
+                             None if is_schema1(manifest) else manifest))
     errors.extend(l14_errors(concepts))
     warns.extend(w7_warnings(concepts))
+    import wiki_doubts
+    errors.extend(wiki_doubts.l15_errors())
+    warns.extend(wiki_doubts.w8_warnings())
+    warns.extend(wiki_doubts.w9_warnings())
     warns.extend(w6_warnings(concepts))
+    if is_schema1(manifest):
+        warns.append(
+            "W10 manifest.json: schema 1 - every command except status, lint "
+            "and migrate-prds refuses; at the human's instruction (the human "
+            "chooses the id and title) run: py tools/wiki.py migrate-prds "
+            '--id <id> --title "<title>" (no arguments if no PRD was ever '
+            "ingested)")
 
     # L7: duplicate glossary alias/title coverage
     seen_names = {}
@@ -1337,7 +1788,12 @@ def cmd_lint():
     # `gate`, which shells out to lint) take 30s+. Same parse, ~1 subprocess.
     CSEP, DSEP = "==COMMIT==", "==DIFF=="
     r = subprocess.run(["git", "log", f"--author={agent_name}", "-n", "200",
-                        f"--format={CSEP}%H%n%B%n{DSEP}", "--unified=0", "-p"],
+                        f"--format={CSEP}%H%n%B%n{DSEP}", "--unified=0", "-p",
+                        # -M: a file that only moved (an approved change report
+                        # under changereports/<id>/) must not read as a new file
+                        # whose assertion lines were added; do not depend on the
+                        # user's diff.renames git configuration.
+                        "-M"],
                        cwd=ROOT, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     for chunk in r.stdout.split(CSEP)[1:]:
@@ -1408,7 +1864,23 @@ def cmd_status():
     for rel, fm, body, _ in all_concepts():
         if fm and fm.get("type") == "Figma Page" and fm.get("status") == "needs-review":
             print(f"NEEDS-REVIEW figma: {fm['id']}")
-    print(f"adopted PRD version: {manifest.get('adopted_prd_version')}")
+    if is_schema1(manifest):
+        print(f"manifest schema 1 (adopted PRD version: "
+              f"{manifest.get('adopted_prd_version')}) - every command except "
+              f"status, lint and migrate-prds refuses; convert it once, at "
+              f"the human's instruction (the human chooses the id and title): "
+              f'py tools/wiki.py migrate-prds --id <id> --title "<title>" '
+              f"(no arguments if no PRD was ever ingested)")
+        return
+    rows = prd_rows(manifest)
+    for r in rows:
+        print(f"PRD {r['id']}: "
+              + (f"adopted v{r['adopted']}" if r["adopted"] is not None
+                 else "no adopted version")
+              + (f", v{r['staged']} staged" if r["staged"] else "")
+              + f"  ({r['title']})")
+    if not rows:
+        print("PRD: none registered")
 
 def cmd_gate(args):
     concepts = {rel: (fm, body) for rel, fm, body, _ in all_concepts()}
@@ -1482,9 +1954,19 @@ def cmd_card(args):
         card = json.loads(card_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         sys.exit(f"card {sub} refused: {card_path.name} is not valid JSON ({e})")
-    if card.get("human_response"):
+    prior = card.get("human_response")
+    # The one exception: an answered doubts card that was never applied (its
+    # register or spec changed since) can be discarded, keeping the answer it
+    # held, so a new card can be emitted. Every other answered card is final.
+    stale_doubts = (sub == "discard" and card.get("card_type") == "doubts"
+                    and isinstance(prior, dict)
+                    and prior.get("answer") == "revise"
+                    and not card.get("applied"))
+    if prior and not stale_doubts:
         sys.exit(f"card {sub} refused: {card_path.name} already answered "
                  f"({card['human_response'].get('answer')})")
+    if stale_doubts:
+        card["superseded_response"] = prior
     hr = {"answer": sub, "by": by, "at": now_iso()}
     if sub == "revise":
         valid = _card_open_q_ids(card)
@@ -1626,6 +2108,10 @@ def require_card(kind, ident, args, by):
         card = json.loads(card_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:
         sys.exit(f"assert refused: card {card_path.name} is not valid JSON ({e})")
+    if isinstance(card, dict) and card.get("card_type") == "doubts":
+        sys.exit(f"assert refused: {card_path.name} is a doubts card; it answers "
+                 f"doubt questions (wiki doubts answer), it cannot assert a "
+                 f"story or flow")
     # Cards in the wild carry either a bare id ("US-XXXX", coverage cards) or a
     # rel path ("stories/US-XXXX", session cards) — compare on the basename.
     scope = card.get("story") or card.get("flow") or ""
@@ -1698,7 +2184,7 @@ def cmd_assert(args):
             tgt, _ = resolve_ref(ref)
             tfm, _b = read_concept(ROOT / (tgt + ".md"))
             if tfm:
-                pins[tfm["id"]] = tfm.get("content_hash") or tfm.get("image_hash")
+                pins[tfm["id"]] = source_pin(tfm)
         fm["source_pins"] = pins
         confirm_test_model(fm, card, ident, by)
         write_concept(p, fm, body)
@@ -1807,7 +2293,7 @@ def cmd_seal():
     print(f"sealed {sealed} test case(s)")
     agent_commit(f"seal: {sealed} test case(s)")
 
-def cmd_cascade():
+def cmd_cascade(commit=True):
     manifest = load_manifest()
     concepts = {rel: (fm, body, p) for rel, fm, body, p in all_concepts()}
     flagged = []
@@ -1817,14 +2303,23 @@ def cmd_cascade():
         if fm and fm.get("type") == "User Story" and fm.get("status") == "aligned":
             for src, pin in (fm.get("source_pins") or {}).items():
                 cur = manifest["sources"].get(src, {})
-                cur_hash = cur.get("content_hash") or cur.get("image_hash")
+                cur_hash = source_pin(cur)
+                removed = cur.get("removed_in")
                 if cur_hash and cur_hash != pin:
+                    cause = f"{src} removed in v{removed}" if removed else src
                     fm["status"] = "needs-review"
-                    fm.setdefault("review_because", []).append(
-                        {"cause": src, "at": now_iso()})
+                    # Same cause AND same source state as the last time this
+                    # cause was recorded: a later change to the same source is
+                    # a new entry, a repeat of this one is not.
+                    because = fm.setdefault("review_because", [])
+                    same = [b for b in because if b.get("cause") == cause]
+                    if not (same and same[-1].get("pin") == cur_hash):
+                        because.append({"cause": cause, "pin": cur_hash,
+                                        "at": now_iso()})
                     write_concept(p, fm, body)
                     verdicts[rel] = "needs-review"
-                    flagged.append(f"story {fm['id']} -> needs-review ({src} changed)")
+                    flagged.append(f"story {fm['id']} -> needs-review "
+                                   f"({src} {'removed' if removed else 'changed'})")
                     break
     # TCs: pinned fragment hashes differ -> stale
     for sc, binding in manifest["bindings"].items():
@@ -1865,11 +2360,29 @@ def cmd_cascade():
         seed = next(iter(verdicts))
         emit("cascade", scope_from_verdicts(model, seed, verdicts),
              make_html="--graph" in sys.argv)
-    agent_commit(f"cascade: {len(flagged)} flag(s)")
+    agent_commit(f"cascade: {len(flagged)} flag(s)", no_commit=not commit)
 
 # ---------------------------------------------------------------- export
 
 # ---------------------------------------------------------------- main
+
+# Commands that still run on a schema-1 manifest: the migration itself, and
+# the two read-only views a human needs to see what state the project is in.
+# `lint` must stay runnable because agent_commit, gate and migrate-prds shell
+# out to it.
+SCHEMA1_OK = ("migrate-prds", "status", "lint")
+# Commands main() does not check because the check is theirs:
+#   tc   `tc edit` refuses in wiki_tcedit.edit(), after it has read (and so
+#        deleted) the one-shot text file the app hands it and before it writes
+#        the spec. A refusal here would leave that file behind.
+#        `tc` is exempt by its top-level name, so EVERY `tc` subcommand must
+#        call refuse_if_schema1 itself before it reads or writes project
+#        content. Today `edit` is the only one; anything else is a usage error.
+#   app  the operator app only serves in-process, read-only views, which is
+#        how an operator sees the project at all; every action it runs is a
+#        `wiki.py` subprocess and is refused like any other command.
+SCHEMA1_SELF = ("tc", "app")
+
 
 def main():
     if len(sys.argv) < 2:
@@ -1878,8 +2391,26 @@ def main():
     cmd = sys.argv[1]
     args = [a for a in sys.argv[2:]
             if a not in ("--no-commit", "--allow-lint-errors")]
+    # No command reads `--flag=value`: arg_after takes the NEXT argument, so
+    # the `=` form would be silently ignored (`--prd=x` acts on the default
+    # PRD, `--by=x` names nobody).
+    for a in args:
+        m = re.match(r"(--[a-z][a-z-]*)=", a)
+        if m:
+            sys.exit(f"{cmd} refused: '{a}' is not read. A flag takes its "
+                     f"value as the next argument: {m.group(1)} "
+                     f"{a[m.end():] or '<value>'}")
+    # A root with no manifest.json gets load_manifest()'s schema-2 default, so
+    # a brand-new project is never refused.
+    if MANIFEST.exists():
+        try:
+            is_schema1(load_manifest())
+        except ManifestError as e:
+            sys.exit(f"{cmd} refused: {e}")
+    if cmd not in SCHEMA1_OK + SCHEMA1_SELF and MANIFEST.exists():
+        refuse_if_schema1(load_manifest(), cmd)
     if cmd == "ingest-prd":
-        cmd_ingest_prd()
+        cmd_ingest_prd(args)
     elif cmd == "ingest-figma":
         cmd_ingest_figma()
     elif cmd == "ingest-decks":
@@ -1928,6 +2459,9 @@ def main():
     elif cmd in ("approve-cr", "reject-cr", "diff"):
         from wiki_change import cmd_change
         cmd_change(cmd, args)
+    elif cmd == "migrate-prds":
+        from wiki_migrate_prds import cmd_migrate_prds
+        cmd_migrate_prds(args)
     elif cmd == "migrate-ids":
         from wiki_migrate import cmd_migrate_ids
         cmd_migrate_ids(args)
@@ -1952,6 +2486,12 @@ def main():
     elif cmd == "next":
         from wiki_next import cmd_next
         cmd_next(args)
+    elif cmd == "doubts":
+        from wiki_doubts import cmd_doubts
+        cmd_doubts(args)
+    elif cmd == "tc":
+        from wiki_tcedit import cmd_tc
+        cmd_tc(args)
     elif cmd == "app":
         try:
             sys.path.insert(0, str(ROOT / "tools/app"))

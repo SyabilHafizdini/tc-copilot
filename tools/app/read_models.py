@@ -17,8 +17,9 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 from wiki_dashboard import gather
 from wiki_next import collect_next, pending_cards, phase_from_stories
-from wiki import load_all
-from wiki_suite import select
+from wiki import (ManifestError, is_schema1, load_all, load_manifest,
+                  schema1_message)
+from wiki_suite import check_prd_filters, select
 
 INVENTORY_DIR = ROOT / "build/inventory"
 
@@ -55,9 +56,22 @@ def _inventory():
 def state():
     """Everything the app's live state view needs, in one JSON-safe dict."""
     dashboard, _graph = gather()
+    # A schema-1 project has no PRD registry, so `prds` is empty there even
+    # when a version is adopted or staged. Say so, in the refusals' own words,
+    # instead of letting the app state "No PRD registered."
+    try:
+        schema1 = is_schema1(load_manifest())
+        notice = schema1_message() if schema1 else None
+    except ManifestError as e:
+        # Every command refuses with this text. The app treats the project as
+        # it treats schema 1 (the notice on every page, PRD state withheld):
+        # the flag is what makes it show the notice.
+        schema1, notice = True, str(e)
     return {
+        "schema1": schema1,
+        "notice": notice,
         "project": dashboard["project"],
-        "prd": dashboard["prd"],
+        "prds": dashboard["prds"],
         "stories": dashboard["stories"],
         "flows": dashboard["flows"],
         "gaps": dashboard["gaps"],
@@ -152,7 +166,8 @@ _SUITE_KINDS = {"sit", "uat", "osat", "mixed"}
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,63}$")
 _PRIORITY_RE = re.compile(r"^P\d$")
 _LIST_KEYS = ("include_modules", "exclude_modules",
-              "include_flows", "exclude_flows")
+              "include_flows", "exclude_flows",
+              "include_prds", "exclude_prds")
 
 
 def _validated_filters(f):
@@ -186,7 +201,8 @@ def suite_preview(filters):
     """Resolved TC-count preview from validated filters. Pure: reuses
     wiki_suite.select over load_all(), so the count matches `suite compile`."""
     suite = _validated_filters(filters)
-    concepts, _manifest = load_all()
+    concepts, manifest = load_all()
+    check_prd_filters(suite, manifest)      # ValueError -> HTTP 400
     selected, retired, stale = select(suite, concepts)
     return {"count": len(selected),
             "ids": [fm["id"] for _rel, fm, _body in selected],

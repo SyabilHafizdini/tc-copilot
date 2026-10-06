@@ -17,6 +17,7 @@ Exits non-zero on the first failure. Leaves the repo exactly as found
 (uses git to detect and revert incidental writes under testcases/).
 """
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -39,9 +40,10 @@ FAST = "--fast" in sys.argv
 # Every scope that has a SIT render spec — the driver is shared, so this is the
 # whole SIT surface.
 SIT_STORIES = sorted(p.stem for p in (ROOT / "tools/sit_specs").glob("*.yaml"))
-# Per-flow UAT run-records (the reusable protocol is the tc-generate-uat skill).
-UAT_RENDERERS = sorted(p.relative_to(ROOT).as_posix()
-                       for p in (ROOT / "tools").glob("render_*_uat.py"))
+# Every flow that has a UAT data spec - the engine tools/render_uat.py is shared
+# (the reusable protocol is the tc-generate-uat skill).
+UAT_FLOWS = sorted(p.stem for p in (ROOT / "tools/uat_specs").glob("*.yaml")) \
+    if (ROOT / "tools/uat_specs").exists() else []
 SUITES = sorted(p.stem for p in (ROOT / "suites").glob("*.yaml")) \
     if (ROOT / "suites").exists() else []
 FLOW_FILES = sorted(p for p in (ROOT / "flows").glob("*.md")
@@ -82,6 +84,40 @@ def rendered_line(out):
     """The 'rendered N, ...' summary line, wherever it falls among any
     SUPPRESSED preamble lines a renderer may print first."""
     return next((ln for ln in out.splitlines() if ln.startswith("rendered ")), None)
+
+def sidecar_check(name, source_type, count, story=None, extra=None):
+    """A compile writes <name>-latest.json beside the workbook: it mirrors the
+    newest timestamped sidecar and lists exactly the test cases compiled."""
+    found = sorted((ROOT / "build/inventory").glob(f"*/{name}-latest.json"),
+                   key=lambda p: p.stat().st_mtime)
+    problem = None
+    if not found:
+        problem = f"no {name}-latest.json under build/inventory/"
+    else:
+        latest = found[-1]
+        doc = json.loads(latest.read_text(encoding="utf-8"))
+        stamped = sorted(p for p in latest.parent.glob(f"{name}_*.json")
+                         if re.fullmatch(re.escape(name) + r"_\d{8}-\d{6}\.json", p.name))
+        want = {"type": source_type, "name": name}
+        if story:
+            want["story"] = story
+        want.update(extra or {})
+        tcs = doc.get("tcs") or {}
+        if not stamped or stamped[-1].read_bytes() != latest.read_bytes():
+            problem = "-latest.json does not mirror the newest timestamped sidecar"
+        elif doc.get("source") != want:
+            problem = f"source {doc.get('source')} != {want}"
+        elif len(tcs) != count:
+            problem = f"{len(tcs)} test cases recorded, {count} compiled"
+        elif not all(k.startswith("testcases/") and str(v).startswith("sha256:")
+                     for k, v in tcs.items()):
+            problem = "tcs must map a testcases/ ref to its sealed sha256 hash"
+        elif not latest.with_suffix(".xlsx").exists():
+            problem = "the sidecar has no workbook beside it"
+    print(f"[{'FAIL' if problem else 'PASS'}] sidecar: {name} ({source_type})"
+          + (f" - {problem}" if problem else ""))
+    if problem:
+        sys.exit(1)
 
 dirty_before = git("status", "--porcelain")
 if dirty_before.strip():
@@ -125,11 +161,12 @@ else:
     print("[PASS] SIT byte-stability: rendered 0, all TC files untouched")
 
 # UAT byte-stability: the journey UAT re-render must also touch nothing
-if not UAT_RENDERERS:
-    print("[SKIP] UAT byte-stability: bundle has no tools/render_*_uat.py")
+if not UAT_FLOWS:
+    print("[SKIP] UAT byte-stability: bundle has no tools/uat_specs/*.yaml")
 else:
-    for _r in UAT_RENDERERS:
-        out = run([_r], name=f"re-render UAT (unchanged wiki): {Path(_r).stem}")
+    for _f in UAT_FLOWS:
+        out = run(["tools/render_uat.py", "--flow", _f],
+                  name=f"re-render UAT (unchanged wiki): {_f}")
         line = rendered_line(out)
         if not line or not line.startswith("rendered 0"):
             print("[FAIL] UAT byte-stability:", out)
@@ -140,12 +177,11 @@ else:
 # These fences are the platform's core safety properties, so a bundle that
 # cannot exercise one says so LOUDLY rather than passing quietly.
 #
-# The SIT and card fences are fixture-backed and run in EVERY bundle. The other
-# two cannot be: the seal fence refuses when TC files are unsealed, and an
-# empty bundle has no TC files to leave unsealed; the UAT fence needs a
-# per-flow UAT run-record, which each project authors via tc-generate-uat.
-# Both are content-dependent by construction, not by oversight -- faking
-# content into the tracked wiki to satisfy them would be worse than saying so.
+# The SIT, UAT and card fences are fixture-backed and run in EVERY bundle. The
+# seal fence cannot be: it refuses when TC files are unsealed, and an empty
+# bundle has no TC files to leave unsealed. It is content-dependent by
+# construction, not by oversight -- faking content into the tracked wiki to
+# satisfy it would be worse than saying so.
 _fence_skips = []
 
 # Self-contained: the spec and the draft story it points at both live under
@@ -160,13 +196,19 @@ else:
               name="coverage fence: render refuses unconfirmed coverage_status")
     assert "REFUSED" in out and "coverage_status" in out, out
 
-if not UAT_RENDERERS:
-    _fence_skips.append("UAT coverage fence (no tools/render_*_uat.py)")
-else:
-    out = run([UAT_RENDERERS[0]], expect=1,
-              env={"TC_UAT_FIXTURE_DIR": "tools/fixtures/uat_flow_gate"},
-              name="UAT coverage fence: render refuses an unconfirmed member story")
-    assert "render UAT REFUSED" in out, out
+# Self-contained: the spec, flow and story all live under
+# tools/fixtures/uat_flow_gate/, so this proves the fence in any bundle.
+out = run(["tools/render_uat.py", "--flow", "FLOW-fixture-gate"], expect=1,
+          env={"TC_UAT_FIXTURE_DIR": "tools/fixtures/uat_flow_gate",
+               "TC_UAT_SPEC_DIR": "tools/fixtures/uat_flow_gate"},
+          name="UAT coverage fence: render refuses an unconfirmed member story")
+assert "render UAT REFUSED" in out, out
+
+# Content-free: builds its own scratch project, hand-raises a level in its SIT
+# spec and requires the real render_sit.py to refuse it and write nothing.
+out = run(["tools/fence_raise_ratchet.py"], expect=0,
+          name="raise ratchet: render refuses a hand-raised confidence level")
+assert "raise ratchet fence OK" in out, out
 
 if not SUITES:
     _fence_skips.append("seal fence (no suites/*.yaml, and no TC files to "
@@ -209,6 +251,21 @@ try:
 finally:
     _wrong.unlink(missing_ok=True)
 
+# A doubts card answers doubt questions; even for the right story it can
+# never assert one.
+_dcard = ROOT / "build/cards/smoke-doubts-card.json"
+_dcard.write_text(json.dumps(
+    {"card_type": "doubts", "story": _story, "open_questions": []}),
+    encoding="utf-8", newline="\n")
+try:
+    out = run(["tools/wiki.py", "assert", "story", _story, "--by", "smoke",
+               "--card", _dcard.relative_to(ROOT).as_posix(), "--no-commit"],
+              expect=1,
+              name="card fence: assert story refuses a doubts card")
+    assert "is a doubts card" in out, out
+finally:
+    _dcard.unlink(missing_ok=True)
+
 for _s in _fence_skips:
     print(f"[SKIP] {_s} -- NOT VERIFIED in this bundle")
 
@@ -238,8 +295,14 @@ run(["tools/test_wiki_triage.py"], name="unit: intake triage classifier")
 run(["tools/test_docx_stream.py"], name="unit: docx PRD stream + chunking")
 run(["tools/test_wiki_reference.py"], name="unit: reference material ingest")
 run(["tools/test_wiki_l13.py"], name="unit: L13 provenance + W6 token coverage")
+run(["tools/test_wiki_suite_doubts.py"], name="unit: workbook AI Doubts sheet")
+run(["tools/test_wiki_sidecar.py"], name="unit: workbook sidecar")
 run(["tools/test_wiki_provenance.py"], name="unit: provenance backfill")
+run(["tools/test_wiki_prds.py"], name="unit: PRD registry accessors + readers")
+run(["tools/test_wiki_multi_prd.py"], name="unit: two PRDs, independent versions and change reports")
 run(["tools/test_wiki_flowdraft.py"], name="unit: flow-builder draft import")
+run(["tools/test_wiki_l10.py"], name="unit: lint L10 assertion-line scope")
+run(["tools/test_wiki_graph.py"], name="unit: wiki graph model + scopes")
 
 
 # ---- end-to-end: intake over a reference dump ------------------------------
@@ -284,8 +347,7 @@ def _intake_end_to_end():
             p.write_text(f"# {rel}\nkey: value\n", encoding="utf-8",
                          newline="\n")
     (sroot / "manifest.json").write_text(
-        json.dumps({"schema_version": 1, "adopted_prd_version": None,
-                    "staged_prd_version": None, "id_config_frozen": False,
+        json.dumps({"schema_version": 2, "prds": {}, "id_config_frozen": False,
                     "counters": {}, "sources": {}, "concepts": {},
                     "bindings": {}, "tc_hashes": {}, "edges": []}),
         encoding="utf-8", newline="\n")
@@ -349,7 +411,7 @@ def _intake_end_to_end():
     m = json.loads((sroot / "manifest.json").read_text(encoding="utf-8"))
     assert len([k for k in m["sources"] if k.startswith("reference#")]) == 17, \
         sorted(m["sources"])
-    assert m["adopted_prd_version"] is None, m
+    assert m["prds"] == {}, m
     print("[PASS] e2e intake: 17 reference concepts, sources/prd/ untouched")
     _sh.rmtree(sroot, ignore_errors=True)
 
@@ -366,10 +428,15 @@ run(["tools/test_rubric.py"], name="unit: rubric loader + validator")
 run(["tools/test_wiki_rubric.py"], name="unit: test_model + C = N/T arithmetic")
 run(["tools/test_render_sit_coverage_items.py"],
     name="unit: coverage_items links TCs to test-model items")
-run(["tools/test_render_sit_force.py"],
-    name="unit: forced re-render skips a provenance-only change")
 run(["tools/test_eval_rubric.py"], name="unit: rubric scoring")
 run(["tools/test_rubric_judge.py"], name="unit: judge verdicts, packs, gaps, patch")
+run(["tools/test_render_sit_chain.py"], name="unit: SIT chain validator + element_block")
+run(["tools/test_render_uat.py"], name="unit: UAT engine + chain validator")
+run(["tools/test_render_prd_versions.py"], name="unit: generated_from.prd_versions + Traceability line")
+run(["tools/test_wiki_suite_runs.py"], name="unit: workbook run sheets")
+run(["tools/test_wiki_suite_prds.py"], name="unit: suite PRD filters + references sheet")
+run(["tools/test_wiki_suite_cells.py"], name="unit: workbook row cells (shared with the app grid)")
+run(["tools/test_wiki_tcedit.py"], name="unit: tc edit resolver + one-key spec rewrite")
 run(["tools/test_wiki_export.py"], name="unit: draft/final export, workbook marks, gate")
 run(["tools/test_rubric_carry.py"], name="unit: round-N verdict carry-forward")
 run(["tools/test_rubric_diff.py"], name="unit: draft -> final diff")
@@ -379,10 +446,18 @@ run(["tools/test_bundle_check.py"], name="unit: viewer bundle freshness")
 run(["tools/test_graph_viewer_path.py"], name="unit: in-repo graph viewer path")
 run(["tools/test_app_next_json.py"], name="unit: next --json")
 run(["tools/test_wiki_next_banners.py"], name="unit: next banners + phase")
+run(["tools/test_wiki_card.py"], name="unit: card revise / discard, card fence")
 run(["tools/test_app_actions.py"], name="unit: app action allowlist")
 run(["tools/test_wiki_session.py"], name="unit: wiki session revert")
+run(["tools/test_wiki_doubts.py"], name="unit: doubt collectors, register, states")
+run(["tools/test_wiki_doubts_observe.py"], name="unit: doubts tester route (observe, card, answer)")
+run(["tools/test_render_lift.py"], name="unit: confidence lift, raise ratchet, lift-aware skip")
 run(["tools/test_app_sidecar.py"], name="unit: opencode sidecar supervisor")
 run(["tools/test_app_read_models.py"], name="unit: app read models")
+run(["tools/test_app_explorer_models.py"], name="unit: app explorer read model")
+run(["tools/test_app_workbook_model.py"], name="unit: app workbook read model")
+run(["tools/test_app_testcase_models.py"], name="unit: app test case grid read model")
+run(["tools/test_app_testcase_prds.py"], name="unit: test case grid PRD field")
 run(["tools/test_app_watcher.py"], name="unit: app change watcher")
 app_http_out = run(["tools/test_app_server.py"], name="unit: app HTTP surface (skips without fastapi)")
 if "[SKIP]" not in app_http_out:
@@ -397,6 +472,11 @@ if "[SKIP]" not in app_http_out:
     print("[PASS] app HTTP surface: /api/state, /api/explorer, and /api/inbox all return 200")
     assert "[PASS] test_chat_health_returns_availability" in app_http_out, app_http_out
     print("[PASS] app HTTP surface: /api/chat/health returns 200")
+    assert "[PASS] test_testcases_endpoint_returns_rows_and_groups" in app_http_out, app_http_out
+    print("[PASS] app HTTP surface: /api/testcases returns 200")
+    assert "[PASS] test_workbook_endpoint_returns_the_read_model" in app_http_out, app_http_out
+    assert "[PASS] test_workbooks_endpoint_lists_the_inventory" in app_http_out, app_http_out
+    print("[PASS] app HTTP surface: /api/workbook and /api/workbooks return 200")
 
 import shutil as _shutil
 if _shutil.which("bun"):
@@ -425,14 +505,15 @@ else:
     print("[SKIP] opencode plugin tests (bun not on PATH)")
 
 if FAST:
-    print("[SKIP] --fast: suite compiles, dashboard, story export, rtm --graph "
+    print("[SKIP] --fast: suite compiles, dashboard, story export, tc edit e2e, rtm --graph "
           "(xlsx rendering + Node graph bake — the slow ~80%)")
 else:
     if not SUITES:
         print("[SKIP] suite compiles: bundle has no suites/*.yaml")
     for _name in SUITES:
-        run(["tools/wiki.py", "suite", "compile", _name, "--no-commit"],
-            name=f"suite compile {_name}")
+        out = run(["tools/wiki.py", "suite", "compile", _name, "--no-commit"],
+                  name=f"suite compile {_name}")
+        sidecar_check(_name, "suite", int(re.search(r": (\d+) active", out).group(1)))
     run(["tools/wiki.py", "dashboard", "--no-commit"], name="dashboard build")
     _exportable = SIT_STORIES or stories_with("status: aligned")
     if not _exportable:
@@ -470,12 +551,25 @@ else:
             if not _ok:
                 print(out)
                 sys.exit(1)
+            if _r.returncode == 0:
+                sidecar_check("smoke-suite-draft", "export",
+                              int(re.search(r"exported DRAFT r0: (\d+) TCs", out).group(1)),
+                              extra={"draft": True})
         finally:
             if _keep:
                 _shutil.copy2(_keep, _snap)    # leave the operator's build/ as found
                 Path(_keep).unlink(missing_ok=True)
             else:
                 _snap.unlink(missing_ok=True)
+
+    run(["tools/test_wiki_tcedit_e2e.py"],
+        name="e2e: wiki tc edit (scratch clone: render, seal, one commit, roll-back)")
+
+    run(["tools/test_wiki_change_commits.py"],
+        name="e2e: approve-cr / reject-cr commit once with an Assertion-Event (scratch repo)")
+
+    run(["tools/test_wiki_migrate_prds.py"],
+        name="e2e: migrate-prds (schema 1 -> 2, one tc-agent commit, scratch repos)")
 
     # graphs: rtm --graph emits a valid viewer JSON with the new node types
     run(["tools/wiki.py", "rtm", "--graph", "--no-commit"],

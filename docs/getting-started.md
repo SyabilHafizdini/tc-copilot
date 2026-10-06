@@ -21,19 +21,21 @@ Open `config.yaml` and replace every `CHANGE ME` / `CHANGE-ME` value:
 
 ## 2. Intake
 
-Drop everything into `PUT_FILES_HERE/`: the PRD (pdf or md), Figma page PNGs,
+Drop everything into `PUT_FILES_HERE/`: the PRD or PRDs (pdf, docx or md), Figma page PNGs,
 decks. Then:
 
 ```
 py tools/wiki.py triage           # dry run: where would each file go?
-py tools/wiki.py triage --apply   # move them
-py tools/wiki.py ingest-prd
+py tools/wiki.py triage --apply --card <card>   # move them (PRD files also need --prd and --prd-version; explained below)
+py tools/wiki.py ingest-prd --prd <id> --title "<title>"
 py tools/wiki.py ingest-figma     # if you have Figma pages
 py tools/wiki.py ingest-decks     # if you have decks
 ```
 
 Triage refuses a Figma file whose name would become a bad permanent id, and
-asks whether an ambiguous document is the PRD or reference material. Those
+asks whether an ambiguous document is the PRD or reference material. For a
+PRD it also asks which PRD it is (an id and a title for a new one) and which
+version, and never guesses either from the file name. Those
 refusals are answered on a card with the agent (`tc-intake`), never by moving
 files around them.
 
