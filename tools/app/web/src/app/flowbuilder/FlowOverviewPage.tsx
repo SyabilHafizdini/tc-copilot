@@ -246,9 +246,11 @@ function Canvas({ model, theme, onToggleTheme }: {
               </div>
             )}
           </div>
-          <aside className="fb-panel fo-panel">
+          <aside className="fo-panel">
+            {/* outside the scrolling body, so the handle spans the panel however long its content */}
             <div className="fo-resize" role="separator" aria-orientation="vertical"
               aria-label="Resize the side panel" title="Drag to resize" onMouseDown={startResize} />
+            <div className="fb-panel">
             {pickedStep
               ? <StepDetail step={pickedStep} model={model} focus={focus} onClose={() => setPicked(null)} />
               : <>
@@ -275,6 +277,7 @@ function Canvas({ model, theme, onToggleTheme }: {
                   <li>A thicker line carries more flows.</li>
                 </ul>
               </>}
+            </div>
           </aside>
         </div>
       </div>

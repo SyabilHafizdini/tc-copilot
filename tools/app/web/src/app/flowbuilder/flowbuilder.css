@@ -111,7 +111,8 @@
 .fo-toggle input:checked + .fo-switch::after { transform: translateX(14px); }
 .fo-toggle input:focus-visible + .fo-switch { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 /* the side panel: its left edge drags to resize; a picked step shows its test cases there */
-.fo-panel { position: relative; }
+.fo-panel { position: relative; min-height: 0; min-width: 0; }
+.fo-panel > .fb-panel { height: 100%; }
 .fo-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 5; }
 .fo-resize:hover, .fo-resize:active { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
 .fo-node { cursor: pointer; }
