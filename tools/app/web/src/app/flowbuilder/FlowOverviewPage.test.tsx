@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { BuilderModel } from '../api'
 
 vi.mock('../api', async () => {
@@ -146,10 +146,28 @@ describe('FlowOverviewPage', () => {
     // a section heading, then the row as the workbook prints it
     expect(screen.getByRole('columnheader', { name: 'Partner' })).toBeInTheDocument()
     expect(table).toHaveTextContent('TC-DMO-SC02-AC02-01Resident adds a partner1. Click Add partner-1. The partner is listedMedium')
+    // one flow is chosen at the top; All brings the rest back
+    const pick = screen.getByRole('group', { name: 'Flow shown' })
+    expect(within(pick).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(within(pick).getByRole('button', { name: 'SC02' }))
+    expect([...table.querySelectorAll('.fo-flowrow')].map((r) => r.textContent)).toEqual(['SC02Resident couple'])
+    expect(screen.getAllByText(/No test case has been generated/)).toHaveLength(1)
+    fireEvent.click(within(pick).getByRole('button', { name: 'All' }))
+    expect(table.querySelectorAll('.fo-flowrow')).toHaveLength(2)
     // back on the chart, nothing was lost
     fireEvent.click(screen.getByRole('tab', { name: 'Flow overview' }))
     expect(screen.getByRole('switch', { name: 'Split steps by data' })).toBeChecked()
     expect(steps()).toHaveLength(3)
+  })
+
+  it('opens the Test cases tab on the flow being traced', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    fireEvent.click(screen.getByRole('button', { name: /Resident couple/ }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Test cases' }))
+    const pick = screen.getByRole('group', { name: 'Flow shown' })
+    expect(within(pick).getByRole('button', { name: 'SC02' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelectorAll('.fo-flowrow')).toHaveLength(1)
   })
 
   it('says so when there are no flows', async () => {

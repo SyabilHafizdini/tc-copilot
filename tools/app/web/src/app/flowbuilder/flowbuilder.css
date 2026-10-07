@@ -161,3 +161,10 @@
 .fo-cases, .fo-panel > .fb-panel { scrollbar-width: thin; scrollbar-color: var(--color-dim) var(--color-panel); }
 /* an exported file is exactly one window tall: only the table or the side panel scrolls, never the page around them */
 .fo-export .page { overflow: hidden; }
+/* Test cases tab: the flow shown is chosen in the page head - All, or one flow */
+.fo-pick { display: inline-flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+.fo-pick button { font-family: ui-monospace, Consolas, monospace; font-size: .74rem; font-weight: 600; padding: 5px 10px; cursor: pointer;
+  border: 1px solid var(--color-border); border-radius: 999px; background: var(--color-panel); color: var(--color-muted); }
+.fo-pick button:hover { color: var(--color-text); border-color: var(--color-dim); }
+.fo-pick button.on { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-accent-ink); }
+.fo-pick button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }

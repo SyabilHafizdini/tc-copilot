@@ -160,19 +160,16 @@ function StepDetail({ step, model, focus, onClose }: {
   )
 }
 
-/* The Test cases tab: every flow's test cases in one table, laid out as the
+/* The Test cases tab: the flows' test cases in one table, laid out as the
  * workbook is - a heading per flow, then a row per test case in journey order
- * under its section heading. Opens scrolled to the flow being traced. */
+ * under its section heading. `flow` narrows it to one flow; the page head
+ * holds the buttons that choose it. */
 function CasesView({ model, flow }: { model: BuilderModel; flow: string | null }) {
-  const flows = model.flows.filter((f) => f.journey.length)
+  const all = model.flows.filter((f) => f.journey.length)
+  const flows = all.some((f) => f.id === flow) ? all.filter((f) => f.id === flow) : all
   const wrap = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    const row = flow ? wrap.current?.querySelector<HTMLElement>(`[data-flow="${flow}"]`) : null
-    const head = wrap.current?.querySelector('thead th')   // a pinned cell, not the row that scrolls away
-    if (!row || !head || !wrap.current) return
-    // bring the flow's heading up to just below the column headings, which stay pinned
-    wrap.current.scrollTop += row.getBoundingClientRect().top - head.getBoundingClientRect().bottom
-  }, [flow])
+  // another choice starts at the top of its table
+  useEffect(() => { if (wrap.current) wrap.current.scrollTop = 0 }, [flow])
   if (!flows.length) return <div className="fo-cases"><p className="fb-dim fo-cases-none">No flows yet.</p></div>
   return (
     <div className="fo-cases" ref={wrap}>
@@ -230,6 +227,9 @@ function Canvas({ model, theme, onToggleTheme }: {
   const [focus, setFocus] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [tab, setTab] = useState<'chart' | 'cases'>('chart')
+  // the flow the Test cases tab is narrowed to (null: all of them). It opens
+  // on the traced flow and is then chosen with the buttons in the page head.
+  const [sheet, setSheet] = useState<string | null>(null)
   const overview = useMemo(() => mergeFlows(model, split), [model, split])
   const criteria = useMemo(() => criteriaOf(model), [model])
   const [nodes, setNodes, onNodesChange] = useNodesState<OvFlowNode>(overview.nodes.map(toFlowNode))
@@ -278,9 +278,19 @@ function Canvas({ model, theme, onToggleTheme }: {
             <button role="tab" aria-selected={tab === 'chart'} className={tab === 'chart' ? 'on' : ''}
               onClick={() => setTab('chart')}>Flow overview</button>
             <button role="tab" aria-selected={tab === 'cases'} className={tab === 'cases' ? 'on' : ''}
-              onClick={() => setTab('cases')}>Test cases</button>
+              onClick={() => { setSheet(focus); setTab('cases') }}>Test cases</button>
           </div>
           <div className="fb-actions">
+            {tab === 'cases' && total > 0 && (
+              <div className="fo-pick" role="group" aria-label="Flow shown">
+                <button className={sheet === null ? 'on' : ''} aria-pressed={sheet === null}
+                  onClick={() => setSheet(null)}>All</button>
+                {overview.flows.map((f) => (
+                  <button key={f.id} className={sheet === f.id ? 'on' : ''} aria-pressed={sheet === f.id}
+                    title={f.title || f.id} onClick={() => setSheet(f.id)}>{f.label}</button>
+                ))}
+              </div>
+            )}
             {tab === 'chart' && <>
             <label className="fo-toggle">
               <input type="checkbox" role="switch" checked={split} onChange={(e) => setSplit(e.target.checked)} />
@@ -299,7 +309,7 @@ function Canvas({ model, theme, onToggleTheme }: {
                   title="Download this overview as one standalone file to share">Export</a>}
           </div>
         </div>
-        {tab === 'cases' && <CasesView model={model} flow={focus} />}
+        {tab === 'cases' && <CasesView model={model} flow={sheet} />}
         {/* the chart stays mounted behind the other tab, so dragged steps and the zoom are kept */}
         <div className="fb-work fo-work"
           style={{ gridTemplateColumns: `minmax(0, 1fr) ${width}px`, display: tab === 'chart' ? undefined : 'none' }}>
