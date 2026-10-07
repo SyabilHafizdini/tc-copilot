@@ -137,7 +137,8 @@ export type BuilderModel = {
   code: string | null
   stories: Array<{
     id: string; title: string | null; status: string
-    acs: Array<{ id: string; text: string; status: string | null; tcs: string[] }>
+    // title: the criterion's short name, where the story gives one
+    acs: Array<{ id: string; title?: string | null; text: string; status: string | null; tcs: string[] }>
   }>
   flows: Array<{
     id: string; title: string | null; status: string; entry_condition: string | null

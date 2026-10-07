@@ -44,6 +44,9 @@ describe('viewFromHash', () => {
     window.location.hash = '#/flowbuilder'
     expect(viewFromHash()).toEqual({ kind: 'flowbuilder' })
     expect(hrefFor({ kind: 'flowbuilder' })).toBe('#/flowbuilder')
+    window.location.hash = '#/flows'
+    expect(viewFromHash()).toEqual({ kind: 'flows' })
+    expect(hrefFor({ kind: 'flows' })).toBe('#/flows')
     window.location.hash = '#/workbook/sit/a-latest.xlsx?sheet=S&row=3'
     expect(viewFromHash()).toEqual(
       { kind: 'workbook', wbKind: 'sit', file: 'a-latest.xlsx', sheet: 'S', row: 3 })

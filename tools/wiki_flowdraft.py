@@ -51,7 +51,8 @@ def builder_model(concepts, cfg):
                                       body_section(body, "Postconditions") or ""}}
     story_rows = [{
         "id": fm["id"], "title": fm.get("title"), "status": fm.get("status"),
-        "acs": [{"id": ac["id"], "text": ac.get("text"), "status": ac.get("status"),
+        "acs": [{"id": ac["id"], "title": ac.get("title"), "text": ac.get("text"),
+                 "status": ac.get("status"),
                  "tcs": sorted(covering.get(f"{rel}#{ac['id']}", []))}
                 for ac in fm.get("acceptance_criteria") or []],
     } for rel, fm in sorted(stories.items())]

@@ -12,7 +12,7 @@ export type View =
   | { kind: 'testcases' } | { kind: 'coverage' } | { kind: 'suites' }
   | { kind: 'changes' } | { kind: 'activity' }
   | { kind: 'rtm' } | { kind: 'settings' } | { kind: 'inbox' }
-  | { kind: 'flowbuilder' }
+  | { kind: 'flowbuilder' } | { kind: 'flows' }
   | { kind: 'workbook'; wbKind: string; file: string; sheet?: string; row?: number }
 
 function decode(part: string): string {
@@ -40,7 +40,7 @@ function workbookFromHash(raw: string): View {
 // handled explicitly because they carry a trailing segment.
 const FLAT = new Set([
   'dashboard', 'board', 'stories', 'documents',
-  'testcases', 'coverage', 'suites', 'changes', 'activity', 'rtm', 'settings', 'inbox', 'flowbuilder',
+  'testcases', 'coverage', 'suites', 'changes', 'activity', 'rtm', 'settings', 'inbox', 'flowbuilder', 'flows',
 ])
 
 export function viewFromHash(): View {
