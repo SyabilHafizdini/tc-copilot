@@ -8,12 +8,15 @@
 import type { BuilderModel } from '../api'
 
 export type OvVariant = { note: string; flows: string[] }
+// one flow's walk of a step: its journey entry, and the data note as written
+export type OvEntry = { flow: string; jid: string; note: string }
 export type OvNode = {
   id: string
   ref: string           // "<story id>#<criterion id>"
   endState: string
   flows: string[]       // ids of the flows that walk this step, in model order
   variants: OvVariant[] // the distinct data notes among those flows
+  entries: OvEntry[]    // every journey entry merged into this step
   col: number
   row: number
   x: number
@@ -54,11 +57,12 @@ export function mergeFlows(model: Pick<BuilderModel, 'flows'>, split: boolean): 
       let node = byKey.get(key)
       if (!node) {
         node = { id: `s${byKey.size + 1}`, ref: j.ac_ref!, endState: (j.end_state ?? '').trim(),
-                 flows: [], variants: [], col: 0, row: 0, x: 0, y: 0 }
+                 flows: [], variants: [], entries: [], col: 0, row: 0, x: 0, y: 0 }
         byKey.set(key, node)
         baseOf.set(node, `${j.ac_ref}|${(j.end_state ?? '').trim()}`)
       }
       if (!node.flows.includes(f.id)) node.flows.push(f.id)
+      node.entries.push({ flow: f.id, jid: j.id, note: (j.note ?? '').trim() })
       const variant = node.variants.find((v) => v.note === note)
       if (variant) { if (!variant.flows.includes(f.id)) variant.flows.push(f.id) }
       else node.variants.push({ note, flows: [f.id] })

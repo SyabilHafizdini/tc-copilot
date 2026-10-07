@@ -54,8 +54,17 @@ def test_flow_builder_endpoint_returns_its_read_model():
     """The Flow Builder page stitches from this: stories, flows, test cases."""
     r = CLIENT.get("/api/flow_builder")
     assert r.status_code == 200, r.text
-    assert {"stories", "flows", "tcs"} <= set(r.json()), sorted(r.json())
+    assert {"stories", "flows", "tcs", "overview_title", "journey_tcs"} <= set(r.json()), sorted(r.json())
     assert CLIENT.get("/api/flow_builder", headers={"Host": "evil.example"}).status_code == 403
+
+
+def test_flow_overview_export_is_a_standalone_download():
+    r = CLIENT.get("/api/flow_overview.html")
+    assert r.status_code == 200, r.text
+    assert r.headers["content-type"].startswith("text/html")
+    assert "attachment" in r.headers["content-disposition"]
+    assert "window.__TC_FLOW_OVERVIEW__ = {" in r.text
+    assert CLIENT.get("/api/flow_overview.html", headers={"Host": "evil.example"}).status_code == 403
 
 
 def test_action_runs_and_reports_rc():

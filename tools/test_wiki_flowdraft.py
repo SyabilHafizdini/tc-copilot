@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
-from wiki_flowdraft import Refusal, builder_model, draft_to_flow
+from wiki_flowdraft import Refusal, builder_model, draft_to_flow, overview_html
 
 STORY = {"type": "User Story", "id": "US-T", "title": "t", "description": "d",
          "status": "aligned",
@@ -45,6 +45,44 @@ def _refused(draft, concepts=None):
     except Refusal as e:
         return str(e)
     raise AssertionError("expected a Refusal")
+
+
+def test_overview_html_bakes_the_flows_into_the_bundle_without_test_cases():
+    import json
+    model = {"project": "Demo", "code": "DMO",
+             "stories": [{"id": "US-T", "title": "t", "status": "aligned",
+                          "acs": [{"id": "AC-1", "title": "Login", "text": "a",
+                                   "status": None, "tcs": ["1.1-AC01-01"]}]}],
+             "flows": [{"id": "FLOW-T", "title": "Close </script> early", "status": "aligned",
+                        "entry_condition": None,
+                        "journey": [{"id": "J01", "end_state": "Home", "note": None,
+                                     "ac_ref": "US-T#AC-1", "source_tc": "1.1-AC01-01",
+                                     "branch": None}]}],
+             "tcs": {"1.1-AC01-01": {"id": "1.1-AC01-01", "title": "t", "acs": [], "sections": {}}},
+             "overview_title": "Demo journeys",
+             "journey_tcs": {"FLOW-T#J01": {"id": "TC-T-AC01-01", "steps": "1. Log in"}}}
+    out = overview_html(model, '<!doctype html><html><head><meta charset="UTF-8"></head><body></body></html>')
+    start = "<head><script>window.__TC_FLOW_OVERVIEW__ = "
+    assert start in out and out.endswith("<body></body></html>")
+    raw = out.split(start, 1)[1].split(";</script>", 1)[0]
+    # a title cannot end the script element early
+    assert "</script>" not in raw
+    baked = json.loads(raw)
+    assert baked["flows"][0]["title"] == "Close </script> early"
+    assert baked["flows"][0]["journey"][0]["source_tc"] is None
+    assert baked["tcs"] == {} and baked["stories"][0]["acs"][0]["tcs"] == []
+    assert baked["stories"][0]["acs"][0]["title"] == "Login"
+    # the page title and each journey entry's own row travel with the file
+    assert baked["overview_title"] == "Demo journeys"
+    assert baked["journey_tcs"] == {"FLOW-T#J01": {"id": "TC-T-AC01-01", "steps": "1. Log in"}}
+    # the caller's model is left as it was
+    assert model["tcs"] and model["stories"][0]["acs"][0]["tcs"] == ["1.1-AC01-01"]
+    try:
+        overview_html(model, "<html><body></body></html>")
+    except Refusal:
+        pass
+    else:
+        raise AssertionError("expected a Refusal")
 
 
 def test_builder_model_lists_sections_with_their_sit_test_cases_and_flows():

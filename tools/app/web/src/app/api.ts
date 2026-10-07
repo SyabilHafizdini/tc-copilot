@@ -150,6 +150,16 @@ export type BuilderModel = {
   }>
   // acs: the "<story id>#<criterion id>" refs the test case covers
   tcs: Record<string, { id: string; title: string | null; acs: string[]; sections: Record<string, string> }>
+  // the Flow Overview's own: the page title a project may set, and the test
+  // case row behind each journey entry, keyed "<flow id>#<entry id>"
+  overview_title?: string | null
+  journey_tcs?: Record<string, JourneyTc>
+}
+
+// One test case as its workbook row prints it; text keeps its **bold** markers.
+export type JourneyTc = {
+  id: string; section: string | null; confidence: string
+  scenario: string; steps: string; data: string; expected: string; remarks: string
 }
 
 export async function getFlowBuilder(): Promise<BuilderModel> {

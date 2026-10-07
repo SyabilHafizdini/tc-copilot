@@ -71,7 +71,7 @@
 
 /* Flow overview: the same canvas, read-only, with every flow merged onto it. */
 .fo-work { grid-template-columns: minmax(0, 1fr) 320px; }
-.fo-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: .8rem; color: var(--color-muted); cursor: pointer; }
+.fo-toggle { position: relative; display: inline-flex; gap: 8px; align-items: center; font-size: .8rem; color: var(--color-muted); cursor: pointer; }
 .fo-node { width: 260px; transition: opacity .15s; }
 .fo-node.fo-dim { opacity: .22; }
 .fo-title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
@@ -96,3 +96,70 @@
 .fo-sw.alt { border-color: var(--color-attn); }
 .fb-page .react-flow__edge.fo-dim { opacity: .15; }
 .fb-page .react-flow__edge-text { font-family: ui-monospace, Consolas, monospace; font-size: 10px; }
+/* an exported file has no app shell: the page fills the window */
+.fo-export { height: 100vh; padding: 14px 20px 0; background: var(--color-bg); color: var(--color-text); }
+.fo-export .fb-work { height: calc(100vh - 86px); }
+.fo-export .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; color: var(--color-muted);
+  background: transparent; border: 1px solid transparent; border-radius: 50%; padding: 0; cursor: pointer; }
+.fo-export .icon-btn:hover { background: var(--color-hover); color: var(--color-text); }
+/* the split control is a checkbox drawn as a switch: the input stays for the keyboard and screen readers */
+.fo-toggle input { position: absolute; opacity: 0; width: 34px; height: 20px; margin: 0; cursor: pointer; }
+.fo-switch { position: relative; flex: none; width: 34px; height: 20px; border-radius: 10px; background: var(--color-border); transition: background .15s; }
+.fo-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s; }
+.fo-toggle input:checked + .fo-switch { background: var(--color-accent); }
+.fo-toggle input:checked + .fo-switch::after { transform: translateX(14px); }
+.fo-toggle input:focus-visible + .fo-switch { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* the side panel: its left edge drags to resize; a picked step shows its test cases there */
+.fo-panel { position: relative; min-height: 0; min-width: 0; }
+.fo-panel > .fb-panel { height: 100%; }
+.fo-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 5; }
+.fo-resize:hover, .fo-resize:active { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+.fo-node { cursor: pointer; }
+.fo-back { margin-bottom: 4px; }
+.fo-detail-title { font-weight: 600; font-size: .9rem; margin: 2px 0 4px; }
+.fo-tcbox { border: 1px solid var(--color-border); border-radius: var(--radius-ctl); margin-top: 6px; background: var(--color-panel); }
+.fo-tcbox > summary { display: flex; gap: 8px; align-items: center; padding: 7px 9px; cursor: pointer; list-style: none; }
+.fo-tcbox > summary::-webkit-details-marker { display: none; }
+.fo-tcbox > summary .fo-flow-title { flex: 1; min-width: 0; }
+.fo-tcbox[open] > summary { border-bottom: 1px solid var(--color-border); }
+.fo-tcbox > p { margin: 8px 9px 0; }
+.fo-note { font-style: italic; }
+.fo-tc { margin: 0; padding: 4px 9px 9px; }
+.fo-tc dt { font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-muted); margin-top: 9px; }
+.fo-tc dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.fo-tcid { font-family: ui-monospace, Consolas, monospace; }
+.fo-conf { flex: none; font-size: .66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: var(--radius-ctl); }
+.fo-conf.high { color: var(--color-ready); background: color-mix(in srgb, var(--color-ready) 16%, transparent); }
+.fo-conf.medium { color: var(--color-attn); background: color-mix(in srgb, var(--color-attn) 16%, transparent); }
+.fo-conf.low { color: var(--color-blocked); background: color-mix(in srgb, var(--color-blocked) 16%, transparent); }
+/* the two views of the page, as a segmented control beside the title */
+.fb-page .page-head { gap: 16px; }
+.fo-tabs { display: inline-flex; margin-right: auto; padding: 3px; border-radius: var(--radius-ctl); background: var(--color-subtle); }
+.fo-tabs button { font: inherit; font-size: .8rem; font-weight: 600; padding: 5px 14px; border: none; border-radius: var(--radius-ctl);
+  background: transparent; color: var(--color-muted); cursor: pointer; }
+.fo-tabs button.on { background: var(--color-panel); color: var(--color-text); box-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
+.fo-tabs button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* Test cases tab: one worksheet-like table that fits the page width and scrolls down only */
+.fo-cases { flex: none; height: calc(100vh - 168px); min-height: 420px; overflow-x: hidden; overflow-y: auto;
+  border: 1px solid var(--color-border); border-radius: var(--radius-ctl); background: var(--color-panel); }
+.fo-export .fo-cases { height: calc(100vh - 86px); }
+.fo-cases-none { padding: 16px; }
+.fo-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: .8rem; }
+.fo-table th, .fo-table td { border: solid var(--color-border); border-width: 0 1px 1px 0; padding: 7px 9px; text-align: left; vertical-align: top; }
+.fo-table th:last-child, .fo-table td:last-child { border-right-width: 0; }
+.fo-table td { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.fo-table thead th { position: sticky; top: 0; z-index: 2; background: var(--color-elev); font-size: .7rem; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--color-muted); }
+.fo-table thead th:nth-child(1) { width: 10%; } .fo-table thead th:nth-child(2) { width: 17%; }
+.fo-table thead th:nth-child(3) { width: 20%; } .fo-table thead th:nth-child(4) { width: 10%; }
+.fo-table thead th:nth-child(5) { width: 22%; } .fo-table thead th:nth-child(6) { width: 7%; }
+.fo-table .fo-flowrow th { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-panel)); font-size: .9rem; font-weight: 700; padding: 10px 9px; }
+.fo-table .fo-flowrow .fo-chip { margin-right: 8px; border-color: var(--color-accent); color: var(--color-accent); }
+.fo-table .fo-section th { background: var(--color-subtle); font-weight: 700; }
+/* scrollbars on this page take the theme colours, so they turn dark with it */
+.fo-cases, .fo-panel > .fb-panel { scrollbar-width: thin; scrollbar-color: var(--color-dim) var(--color-panel); }
+/* an exported file is exactly one window tall: only the table or the side panel scrolls, never the page around them */
+.fo-export .page { overflow: hidden; }
+/* Test cases tab: the flow shown is chosen in the page head - all, or one flow by its full title */
+.fb-actions select.fo-pick { min-width: 300px; max-width: 46vw; padding: 6px 10px; font-size: .82rem; cursor: pointer; }

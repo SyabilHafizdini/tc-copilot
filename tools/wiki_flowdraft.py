@@ -78,6 +78,32 @@ def builder_model(concepts, cfg):
             "stories": story_rows, "flows": flow_rows, "tcs": tcs}
 
 
+OVERVIEW_GLOBAL = "__TC_FLOW_OVERVIEW__"
+
+
+def overview_html(model, bundle):
+    """The app bundle with the flows baked in: one file that opens straight to
+    the Flow Overview with no server behind it. Carries only what that page
+    draws: criteria, journeys, the page title and each journey entry's own
+    test case row (`journey_tcs`), never the test cases behind a criterion.
+    Pure."""
+    data = {"project": model["project"], "code": model.get("code"),
+            "stories": [{**s, "acs": [{**ac, "tcs": []} for ac in s["acs"]]}
+                        for s in model["stories"]],
+            "flows": [{**f, "journey": [{**j, "source_tc": None} for j in f["journey"]]}
+                      for f in model["flows"]],
+            "tcs": {},
+            "overview_title": model.get("overview_title"),
+            "journey_tcs": model.get("journey_tcs") or {}}
+    # "<" is escaped so no text in a flow can close the script element
+    payload = json.dumps(data, ensure_ascii=False).replace("<", "\\u003c")
+    head = re.search(r"<head[^>]*>", bundle, re.I)
+    if not head:
+        raise Refusal("the app bundle has no <head> to carry the flows")
+    return (bundle[:head.end()] + f"<script>window.{OVERVIEW_GLOBAL} = {payload};</script>"
+            + bundle[head.end():])
+
+
 def draft_to_flow(draft, concepts):
     """(rel, frontmatter, body) for the draft, or raise Refusal. Pure."""
     if draft.get("kind") != "flow-draft":

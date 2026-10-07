@@ -65,6 +65,21 @@ def test_group_common_is_the_exports_shared_precondition_block():
         assert isinstance(g["common"], list)
 
 
+def test_journey_rows_key_active_flow_test_cases_by_the_entry_they_walk():
+    def row(tid, status, covers):
+        return {"display_id": tid, "status": status, "covers": covers, "section": "Login",
+                "confidence": "High",
+                "cells": {"scenario": "s", "steps": "1. x", "data": "", "expected": "e", "remarks": "r"}}
+    out = testcase_models.journey_rows([
+        row("TC-A", "active", ["/stories/US-T.md#AC-1", "/flows/FLOW-T.md#J01"]),
+        row("TC-B", "retired", ["/flows/FLOW-T.md#J02"]),
+        row("TC-C", "active", ["/stories/US-T.md#AC-1"]),
+    ])
+    assert out == {"FLOW-T#J01": {"id": "TC-A", "section": "Login", "confidence": "High",
+                                  "scenario": "s", "steps": "1. x", "data": "",
+                                  "expected": "e", "remarks": "r"}}, out
+
+
 def test_every_test_case_is_a_row_once():
     concepts, _m = wiki.load_all()
     want = sorted(fm["id"] for _r, (fm, _b, _p) in concepts.items()

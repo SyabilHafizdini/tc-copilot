@@ -59,3 +59,8 @@ rubric:
   blend:
     tier1: 40
     tier2: 60
+
+flow_overview:
+  # Heading of the app's Flow Overview page and of the file it exports.
+  # Blank: "Flow overview".
+  title: ""
