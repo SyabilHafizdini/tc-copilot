@@ -157,3 +157,7 @@
 .fo-table .fo-flowrow th { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-panel)); font-size: .9rem; font-weight: 700; padding: 10px 9px; }
 .fo-table .fo-flowrow .fo-chip { margin-right: 8px; border-color: var(--color-accent); color: var(--color-accent); }
 .fo-table .fo-section th { background: var(--color-subtle); font-weight: 700; }
+/* scrollbars on this page take the theme colours, so they turn dark with it */
+.fo-cases, .fo-panel > .fb-panel { scrollbar-width: thin; scrollbar-color: var(--color-dim) var(--color-panel); }
+/* an exported file is exactly one window tall: only the table or the side panel scrolls, never the page around them */
+.fo-export .page { overflow: hidden; }
