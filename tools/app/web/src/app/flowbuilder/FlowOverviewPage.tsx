@@ -92,7 +92,7 @@ function Canvas({ model, theme, onToggleTheme }: {
   model: BuilderModel; theme: Theme
   onToggleTheme?: () => void   // given only in an exported file, which has no top bar
 }) {
-  const [split, setSplit] = useState(false)
+  const [split, setSplit] = useState(true)
   const [focus, setFocus] = useState<string | null>(null)
   const overview = useMemo(() => mergeFlows(model, split), [model, split])
   const criteria = useMemo(() => criteriaOf(model), [model])
@@ -122,6 +122,12 @@ function Canvas({ model, theme, onToggleTheme }: {
   }), [overview, focus, total])
 
   const fit = () => rf.fitView({ padding: 0.1, duration: 200 })
+  // back to the chart as first drawn: dragged steps return, no flow is traced
+  const reset = () => {
+    setNodes(overview.nodes.map(toFlowNode))
+    setFocus(null)
+    setTimeout(fit, 0)   // fit once the returned steps are on the canvas
+  }
 
   return (
     <Ctx.Provider value={{ overview, criteria, focus }}>
@@ -130,10 +136,13 @@ function Canvas({ model, theme, onToggleTheme }: {
           <h1>Flow overview</h1>
           <div className="fb-actions">
             <label className="fo-toggle">
-              <input type="checkbox" checked={split} onChange={(e) => setSplit(e.target.checked)} />
+              <input type="checkbox" role="switch" checked={split} onChange={(e) => setSplit(e.target.checked)} />
+              <span className="fo-switch" aria-hidden="true" />
               Split steps by data
             </label>
             <button className="btn" onClick={fit} disabled={!nodes.length}>Fit</button>
+            <button className="btn" onClick={reset} disabled={!nodes.length}
+              title="Put every step back where it was drawn and show all flows">Reset chart</button>
             {onToggleTheme
               ? <button className="icon-btn" onClick={onToggleTheme}
                   aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>

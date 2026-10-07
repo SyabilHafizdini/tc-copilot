@@ -39,6 +39,7 @@ describe('FlowOverviewPage', () => {
   it('draws one step per shared criterion and lists the flows', async () => {
     render(<FlowOverviewPage theme="light" />)
     expect(await screen.findByRole('heading', { name: 'Flow overview' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('switch', { name: 'Split steps by data' }))   // merged
     await waitFor(() => expect(steps()).toHaveLength(2))
     expect(panel()).toHaveTextContent('2 distinct steps, 2 walked by every flow.')
     // a criterion title is shown where the story gives one, else its text
@@ -50,24 +51,36 @@ describe('FlowOverviewPage', () => {
     expect(screen.getByRole('button', { name: /Citizen couple/ })).toHaveAttribute('aria-pressed', 'false')
   })
 
-  it('splits a step into one node per data note', async () => {
+  it('opens split into one node per data note, and merges on request', async () => {
     render(<FlowOverviewPage theme="light" />)
     await screen.findByRole('heading', { name: 'Flow overview' })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Split steps by data' }))
+    expect(screen.getByRole('switch', { name: 'Split steps by data' })).toBeChecked()
     await waitFor(() => expect(steps()).toHaveLength(3))
     expect(panel()).toHaveTextContent('3 distinct steps, 1 walked by every flow.')
+    fireEvent.click(screen.getByRole('switch', { name: 'Split steps by data' }))
+    await waitFor(() => expect(steps()).toHaveLength(2))
   })
 
   it('traces one flow and dims the steps it does not walk', async () => {
     render(<FlowOverviewPage theme="light" />)
     await screen.findByRole('heading', { name: 'Flow overview' })
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Split steps by data' }))
     const pick = screen.getByRole('button', { name: /Resident couple/ })
     fireEvent.click(pick)
     expect(pick).toHaveAttribute('aria-pressed', 'true')
     await waitFor(() => expect(document.querySelectorAll('.fo-node.fo-dim')).toHaveLength(1))
     fireEvent.click(screen.getByRole('button', { name: 'Show all flows' }))
     expect(document.querySelectorAll('.fo-node.fo-dim')).toHaveLength(0)
+  })
+
+  it('resets the chart: no flow traced, the split left as chosen', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    fireEvent.click(screen.getByRole('button', { name: /Resident couple/ }))
+    await waitFor(() => expect(document.querySelectorAll('.fo-node.fo-dim')).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset chart' }))
+    await waitFor(() => expect(document.querySelectorAll('.fo-node.fo-dim')).toHaveLength(0))
+    expect(screen.getByRole('button', { name: /Resident couple/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(steps()).toHaveLength(3)
   })
 
   it('says so when there are no flows', async () => {
@@ -96,12 +109,13 @@ describe('FlowOverviewExport', () => {
   it('draws the baked flows without calling the server', async () => {
     vi.mocked(api.getFlowBuilder).mockClear()
     render(<FlowOverviewExport model={MODEL} />)
-    await waitFor(() => expect(steps()).toHaveLength(2))
+    await waitFor(() => expect(steps()).toHaveLength(3))
     expect(api.getFlowBuilder).not.toHaveBeenCalled()
     expect(document.title).toBe('Flow overview - Demo')
     // the same controls as in the app, bar the export itself
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Split steps by data' }))
-    await waitFor(() => expect(steps()).toHaveLength(3))
+    fireEvent.click(screen.getByRole('switch', { name: 'Split steps by data' }))
+    await waitFor(() => expect(steps()).toHaveLength(2))
+    expect(screen.getByRole('button', { name: 'Reset chart' })).toBeEnabled()
     expect(screen.queryByRole('link', { name: 'Export' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: /Switch to dark theme/ }))
     expect(document.documentElement.dataset.theme).toBe('dark')
