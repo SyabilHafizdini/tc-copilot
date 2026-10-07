@@ -27,7 +27,7 @@ TEXT2 = "The page shows done and a receipt."
 
 
 def _workbook(d, name="w.xlsx"):
-    """The real AI Doubts sheet (wiki_suite code) of the scratch project."""
+    """The real Doubts sheet (wiki_suite code) of the scratch project."""
     s = wiki_doubts.story_summary(STORY, root=d)
     tcs = []
     for p in sorted((d / "testcases" / "fixture").glob("TC-*.md")):
@@ -45,7 +45,7 @@ def _fill(path, rows):
     (id, observation) appended for ids not on the sheet."""
     from openpyxl import load_workbook
     wb = load_workbook(path)
-    ws = wb["AI Doubts"]
+    ws = wb["Doubts"]
     head = {c.value: c.column for c in ws[1]}
     seen = set()
     for r in range(2, ws.max_row + 1):
@@ -132,12 +132,12 @@ def test_observe_refusals():
         w.save(nosheet)
         nohead = d / "nohead.xlsx"
         w = Workbook()
-        w.active.title = "AI Doubts"
+        w.active.title = "Doubts"
         w.active.append(["Question ID", "Question"])
         w.save(nohead)
         noid = d / "noid.xlsx"
         w = Workbook()
-        w.active.title = "AI Doubts"
+        w.active.title = "Doubts"
         w.active.append(["Question", "Observation"])
         w.save(noid)
         cases = [
@@ -146,7 +146,7 @@ def test_observe_refusals():
             (["--by", "t"], "--workbook"),
             (["--workbook", str(d / "missing.xlsx"), "--by", "t"], "not found"),
             (["--workbook", str(junk), "--by", "t"], "not an xlsx"),
-            (["--workbook", str(nosheet), "--by", "t"], "AI Doubts"),
+            (["--workbook", str(nosheet), "--by", "t"], "Doubts"),
             (["--workbook", str(nohead), "--by", "t"], "Observation"),
             (["--workbook", str(noid), "--by", "t"], "Question ID"),
         ]

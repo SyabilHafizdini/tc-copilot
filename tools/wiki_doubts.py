@@ -1301,7 +1301,7 @@ def _rollback(root, written, saved):
 
 OBSERVE_REFUSED = "doubts observe refused: "
 OBSERVE_USAGE = "usage: wiki doubts observe --workbook <xlsx> --by <tester>"
-DOUBT_SHEET = "AI Doubts"
+DOUBT_SHEET = "Doubts"
 QUESTION_ID_RE = re.compile(r"Q-(.+)-\d+")
 
 
@@ -1338,7 +1338,7 @@ def _cell_text(v):
 
 
 def _sheet_rows(path):
-    """[{header: cell value}] of the AI Doubts sheet, columns found by header
+    """[{header: cell value}] of the Doubts sheet, columns found by header
     text. Refuses (exit 1) when the sheet or a required header is missing."""
     from openpyxl import load_workbook
     try:

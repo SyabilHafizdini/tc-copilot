@@ -149,7 +149,7 @@ your answer. Your own words lift nothing yet: the agent writes them into the
 story, rewrites the parts, renders, and brings a new card for you to confirm
 the rewritten text. The agent never raises a confidence level itself, and an
 answer you give in chat goes onto a card before it counts. The workbook's
-`AI Doubts` sheet lists the open questions.
+`Doubts` sheet lists the open questions.
 
 ## When a new PRD version arrives (`tc-change-report`)
 

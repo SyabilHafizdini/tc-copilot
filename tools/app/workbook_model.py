@@ -484,7 +484,7 @@ def _read_sheets(wb):
             if (ws.title.startswith("C-TC") and r > TC_HEADER_ROW
                     and _TC_ID_RE.match(first)):
                 tc_rows.append((si, r, first))
-            elif ws.title == "AI Doubts" and r > 1 and _QUESTION_ID_RE.match(first):
+            elif ws.title == "Doubts" and r > 1 and _QUESTION_ID_RE.match(first):
                 questions.setdefault(first, {"sheet": ws.title, "row": r})
         sheets.append({
             "name": ws.title,

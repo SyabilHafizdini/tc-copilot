@@ -314,9 +314,9 @@ describe('App view routing', () => {
   })
 
   it('mounts the WorkbookPage with kind, file, sheet and row from the hash', async () => {
-    window.location.hash = '#/workbook/sit/demo-latest.xlsx?sheet=AI+Doubts&row=4'
+    window.location.hash = '#/workbook/sit/demo-latest.xlsx?sheet=Doubts&row=4'
     render(<App />)
-    expect(await screen.findByText('Workbook page stub: sit/demo-latest.xlsx/AI Doubts/4'))
+    expect(await screen.findByText('Workbook page stub: sit/demo-latest.xlsx/Doubts/4'))
       .toBeInTheDocument()
   })
 })

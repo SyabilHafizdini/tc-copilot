@@ -114,7 +114,7 @@ def test_sheets_come_back_in_file_order():
     with Bench() as b:
         names = [s["name"] for s in b.view()["sheets"]]
     assert names == ["A - Table of Contents", "B - Proj Doc References", MAIN,
-                     "AI Doubts", "Test Statistics", "Change Log"], names
+                     "Doubts", "Test Statistics", "Change Log"], names
 
 
 def test_column_widths_frozen_rows_and_row_heights():
@@ -209,7 +209,7 @@ def test_parse_locates_test_case_ids_and_question_ids():
     assert [(names[si], tid) for si, _r, tid in parsed["tc_rows"]] == [
         (MAIN, f"TC-1.1-AC01-{i:02d}") for i in (1, 2, 3)], parsed["tc_rows"]
     assert all(r > wiki_suite.TC_HEADER_ROW for _si, r, _t in parsed["tc_rows"])
-    assert parsed["questions"] == {"Q-US-X-01": {"sheet": "AI Doubts", "row": 2}}
+    assert parsed["questions"] == {"Q-US-X-01": {"sheet": "Doubts", "row": 2}}
 
 
 def test_parse_is_cached_by_path_and_mtime():
@@ -351,7 +351,7 @@ def test_links_locate_test_case_rows_and_question_rows():
         view = b.view()
     row = next(i for i, r in enumerate(_sheet(view, MAIN)["rows"], 1) if r["tc"])
     assert view["links"]["tcs"]["TC-1.1-AC01-01"] == {"sheet": MAIN, "row": row}
-    assert view["links"]["questions"] == {"Q-US-X-01": {"sheet": "AI Doubts", "row": 2}}
+    assert view["links"]["questions"] == {"Q-US-X-01": {"sheet": "Doubts", "row": 2}}
 
 
 def test_a_changed_hash_flags_its_row_and_the_count():

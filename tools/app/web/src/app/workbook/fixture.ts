@@ -27,7 +27,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
     ],
     links: {
       tcs: { 'TC-1.1-AC01-01': { sheet: MAIN, row: 3 }, 'TC-1.1-AC01-02': { sheet: MAIN, row: 4 } },
-      questions: { 'Q-US-X-01': { sheet: 'AI Doubts', row: 2 } },
+      questions: { 'Q-US-X-01': { sheet: 'Doubts', row: 2 } },
     },
     sheets: [
       {
@@ -55,7 +55,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
         ],
       },
       {
-        name: 'AI Doubts', cols: [16, 60, 44], frozen_rows: 1, merges: [],
+        name: 'Doubts', cols: [16, 60, 44], frozen_rows: 1, merges: [],
         rows: [
           row([cell('Question ID', { bold: true }), cell('Question', { bold: true }), cell('Affected (TC id / column)', { bold: true })]),
           row([cell('Q-US-X-01'), cell('Which value?'), cell('TC-1.1-AC01-01 / Field / Values', { wrap: true })]),
