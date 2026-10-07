@@ -27,7 +27,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
     ],
     links: {
       tcs: { 'TC-1.1-AC01-01': { sheet: MAIN, row: 3 }, 'TC-1.1-AC01-02': { sheet: MAIN, row: 4 } },
-      questions: { 'Q-US-X-01': { sheet: 'AI Doubts', row: 2 } },
+      questions: { 'Q-US-X-01': { sheet: 'Doubts', row: 2 } },
     },
     sheets: [
       {
@@ -36,7 +36,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
           row([
             cell('Test Case ID', { fill: 'D9D9D9', bold: true, align: 'center', valign: 'center', wrap: true, border: true }),
             cell('Test Steps', { fill: 'D9D9D9', bold: true, border: true }),
-            cell('AI Remarks', { fill: 'D9D9D9', bold: true, border: true }),
+            cell('Test Case Remarks', { fill: 'D9D9D9', bold: true, border: true }),
           ], { height: 38 }),
           row([cell('Section: Step 1', { fill: 'DDEBF7', bold: true, border: true }), cell(), cell()],
             { height: 18 }),
@@ -55,7 +55,7 @@ export function payload(over: Partial<WorkbookPayload> = {}): WorkbookPayload {
         ],
       },
       {
-        name: 'AI Doubts', cols: [16, 60, 44], frozen_rows: 1, merges: [],
+        name: 'Doubts', cols: [16, 60, 44], frozen_rows: 1, merges: [],
         rows: [
           row([cell('Question ID', { bold: true }), cell('Question', { bold: true }), cell('Affected (TC id / column)', { bold: true })]),
           row([cell('Q-US-X-01'), cell('Which value?'), cell('TC-1.1-AC01-01 / Field / Values', { wrap: true })]),

@@ -144,13 +144,13 @@ signed answer.
 
 ## What you see in the workbook
 
-`suite compile` adds an `AI Doubts` sheet after the test-case sheets when the
+`suite compile` adds an `Doubts` sheet after the test-case sheets when the
 selected test cases have open doubts. One row per question that touches a
 selected test case, in impact order, then one row per ungrouped doubt (status
 `ungrouped`, the remark as its text). Columns: Question ID, Question, Status,
 Test cases, Lowest level, Affected (TC id / column), Answer, then blank
 Observation, Observed by and Date for the tester. On the test-case sheets,
-each AI Remarks line of a grouped doubt carries its question id, for example
+each Test Case Remarks line of a grouped doubt carries its question id, for example
 `**Field / Values**: Low [Q-US-DEMO-001-01] - Inferred: ...`.
 
 Open doubts never block an export; `wiki next` shows them as a non-blocking
@@ -159,7 +159,7 @@ Open doubts never block an export; `wiki next` shows them as a non-blocking
 ## The tester route
 
 A tester who knows the answer writes it in the Observation column of the
-`AI Doubts` sheet (and their name and the date). Give the filled workbook to
+`Doubts` sheet (and their name and the date). Give the filled workbook to
 the agent: `doubts observe` records the text verbatim in
 `doubts/observations/<story>.yaml`, and on the next card that text is the
 question's proposed answer, marked as the tester's observation. You still

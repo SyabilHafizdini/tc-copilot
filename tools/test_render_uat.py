@@ -127,6 +127,54 @@ def test_end_state_wording_place_versus_sentence():
     assert render_uat.state_sentence("Step 1 is completed.") == "Step 1 is completed."
 
 
+def test_run_is_optional_and_must_be_a_name():
+    spec = _spec()
+    spec["run"] = "Scenario 1"
+    assert _errors(spec) == ""
+    spec["run"] = "  "
+    assert "run must be a non-empty name" in _errors(spec)
+    spec["run"] = ["a"]
+    assert "run must be a non-empty name" in _errors(spec)
+
+
+def _alloc(journey, bindings):
+    return render_uat.allocate_ids(
+        journey, lambda j: f"SC-{j}", bindings,
+        lambda ac, seq: f"UAT-X-{ac}-{seq:02d}")
+
+
+def test_unbound_entries_number_per_ac_in_journey_order():
+    j = [{"id": "J01", "ref": "/stories/s.md#AC1"}, {"id": "J02", "ref": "/stories/s.md#AC1"},
+         {"id": "J03", "ref": "/stories/s.md#AC2"}]
+    assert _alloc(j, {}) == {"J01": "UAT-X-AC1-01", "J02": "UAT-X-AC1-02",
+                             "J03": "UAT-X-AC2-01"}
+
+
+def test_inserted_entry_never_takes_a_bound_id():
+    # J09 is inserted BEFORE the already-sealed J02 on the same AC.
+    j = [{"id": "J01", "ref": "/stories/s.md#AC1"}, {"id": "J09", "ref": "/stories/s.md#AC2"},
+         {"id": "J02", "ref": "/stories/s.md#AC2"}]
+    bindings = {"SC-J01": {"tc": "testcases/uat/UAT-X-AC1-01"},
+                "SC-J02": {"tc": "testcases/uat/UAT-X-AC2-01"}}
+    ids = _alloc(j, bindings)
+    assert ids["J02"] == "UAT-X-AC2-01", ids
+    assert ids["J09"] == "UAT-X-AC2-02", ids
+    assert len(set(ids.values())) == 3, ids
+
+
+def test_flow_test_cases_sort_by_walk_order_not_journey_number():
+    import wiki_suite
+    def fm(tid, jid, order=None):
+        d = {"id": tid, "covers": ["/stories/s.md#AC1", f"/flows/F.md#{jid}"]}
+        if order is not None:
+            d["order"] = order
+        return d
+    inserted = [fm("a", "J01", 1), fm("b", "J15", 2), fm("c", "J02", 3)]
+    assert [f["id"] for f in sorted(inserted, key=wiki_suite.tc_sort_key)] == ["a", "b", "c"]
+    legacy = [fm("c", "J03"), fm("a", "J01"), fm("b", "J02")]
+    assert [f["id"] for f in sorted(legacy, key=wiki_suite.tc_sort_key)] == ["a", "b", "c"]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

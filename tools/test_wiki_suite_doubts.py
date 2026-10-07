@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AI Doubts sheet and question ids in AI Remarks
+"""Doubts sheet and question ids in Test Case Remarks
 (run: py tools/test_wiki_suite_doubts.py)."""
 import sys
 import tempfile
@@ -80,7 +80,7 @@ def _render(tcs, summaries, path=None):
 
 
 def _sheet_rows(wb):
-    return [[c.value for c in row] for row in wb["AI Doubts"].iter_rows()]
+    return [[c.value for c in row] for row in wb["Doubts"].iter_rows()]
 
 
 def test_sheet_sits_after_the_last_c_tc_sheet_and_is_in_the_toc():
@@ -90,9 +90,9 @@ def test_sheet_sits_after_the_last_c_tc_sheet_and_is_in_the_toc():
     wb, _ = _render(tcs, sums)
     names = wb.sheetnames
     last = max(i for i, n in enumerate(names) if n.startswith("C-TC"))
-    assert names[last + 1] == "AI Doubts" and names[last + 2] == "Test Statistics", names
+    assert names[last + 1] == "Doubts" and names[last + 2] == "Test Statistics", names
     toc = [wb["A - Table of Contents"].cell(row=r, column=1).value for r in range(23, 32)]
-    assert "AI Doubts" in toc, toc
+    assert "Doubts" in toc, toc
 
 
 def test_header_row_has_the_ten_titles_in_order():
@@ -179,10 +179,10 @@ def test_no_summaries_means_no_sheet_and_untagged_remarks():
     tcs, _ = _fixture()
     for none in (None, []):
         wb, _b = _render(tcs, none)
-        assert "AI Doubts" not in wb.sheetnames
+        assert "Doubts" not in wb.sheetnames
         toc = [wb["A - Table of Contents"].cell(row=r, column=1).value
                for r in range(23, 32)]
-        assert "AI Doubts" not in toc
+        assert "Doubts" not in toc
         ws = wb[[n for n in wb.sheetnames if n.startswith("C-TC")][0]]
         assert not any("[Q-" in str(c.value) for row in ws.iter_rows() for c in row)
     fm = tcs[0][1]

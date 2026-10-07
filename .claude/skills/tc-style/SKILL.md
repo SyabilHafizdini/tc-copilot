@@ -129,7 +129,7 @@ linear continuation: it is a standalone check or a fork.
 
 Every test case is rated on FOUR parts - one per workbook column the tester
 reviews - each with a level and a remark. The workbook shows them right after
-Expected Results (`AI Confidence` = the lowest of the four, `AI Remarks` = one
+Expected Results (`Confidence` = the lowest of the four, `Test Case Remarks` = one
 line per column) and the markdown carries them in `# Confidence`.
 
 | Part | Column | High when... | Medium when... | Low when... |

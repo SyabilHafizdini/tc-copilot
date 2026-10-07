@@ -21,7 +21,7 @@ export:
   system_name: Example System
   module_prefix: EXM
   roles: "Viewer, Reviewer, Approver"
-  prepared_by: tc-copilot
+  prepared_by: ""          # blank: the workbook names no author
 
 generation:
   max_quality_retries: 2

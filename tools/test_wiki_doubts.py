@@ -2018,7 +2018,7 @@ def test_suite_export_leaves_the_doubts_sheet_out_when_summaries_fail():
         err = io.StringIO()
         with contextlib.redirect_stderr(err):
             assert wiki_suite.doubt_summaries(root=d) is None
-        assert "AI Doubts sheet is left out" in err.getvalue(), err.getvalue()
+        assert "Doubts sheet is left out" in err.getvalue(), err.getvalue()
         assert len(err.getvalue().splitlines()) == 1
     finally:
         wiki_doubts.stories_with_doubts = orig

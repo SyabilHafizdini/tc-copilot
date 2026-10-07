@@ -13,6 +13,9 @@ another profile, or a state a second entry already continues, must carry
 `fresh_run: true`: the run is replayed to that point and the precondition is
 worded `Continue from TC-<id> (fresh run replayed to this point)`. That one
 value also sets the frontmatter `fresh_run`.
+A flow is a run (tc-style R6): every test case carries `run`, the spec's
+optional top-level `run` (the worksheet name, kept short) or else the flow's
+title, so the export gives each flow its own worksheet.
 Re-running on an unchanged wiki prints `rendered 0`.
 
 Run:
@@ -49,7 +52,7 @@ from render_sit import (CONF_PARTS, confidence_block, confidence_errors,
 SPEC_DIR = Path(os.environ.get("TC_UAT_SPEC_DIR") or Path(__file__).parent / "uat_specs")
 SPEC_REQUIRED = ("flow", "module", "out", "story_num", "scenario_id",
                  "generator_version", "profiles", "entries")
-SPEC_OPTIONAL = ()
+SPEC_OPTIONAL = ("run",)
 ENTRY_REQUIRED = ("area", "priority", "title", "objective", "steps", "expected",
                   "confidence", "profile")
 ENTRY_OPTIONAL = ("alts", "continue_from", "fresh_run", "remarks")
@@ -91,6 +94,34 @@ def tc_id(cfg, story_num, ac_id, seq):
                                               ac_num=int(m.group(1)), seq=seq)
 
 
+def allocate_ids(journey, scenario_of, bindings, make_id):
+    """{journey id: test case id}. An entry whose scenario is already bound
+    keeps the bound id (bindings are permanent). An unbound entry takes the
+    next sequence number for its AC that no bound entry of this journey owns,
+    so an entry added to an asserted journey - wherever it is inserted - never
+    collides with a sealed test case."""
+    bound = {}
+    for e in journey:
+        b = bindings.get(scenario_of(e["id"]))
+        if b:
+            bound[e["id"]] = Path(b["tc"]).name
+    taken = set(bound.values())
+    ids, seq_by_ac = {}, {}
+    for e in journey:
+        if e["id"] in bound:
+            ids[e["id"]] = bound[e["id"]]
+            continue
+        ac = resolve_ref(e["ref"])[1]
+        while True:
+            seq_by_ac[ac] = seq_by_ac.get(ac, 0) + 1
+            cand = make_id(ac, seq_by_ac[ac])
+            if cand not in taken:
+                break
+        taken.add(cand)
+        ids[e["id"]] = cand
+    return ids
+
+
 def display_id(wiki_id):
     return "TC-" + wiki_id.removeprefix("UAT-")
 
@@ -128,6 +159,8 @@ def validate_uat_spec(spec, path):
     for k in SPEC_REQUIRED:
         if k not in spec:
             errs.append(f"missing required top-level key '{k}'")
+    if "run" in spec and not (isinstance(spec["run"], str) and spec["run"].strip()):
+        errs.append("run must be a non-empty name (the flow's worksheet)")
     entries = spec.get("entries") or {}
     if not isinstance(entries, dict):
         errs.append("entries is not a mapping")
@@ -237,6 +270,7 @@ def render(flow_id, force=False):
         _fail("render UAT REFUSED: fixture mode never writes")
 
     flow_ref = spec["flow"]
+    run_name = (spec.get("run") or flow_fm.get("title") or flow_id).strip()
     entry_condition = flow_fm.get("entry_condition") or "Flow entry condition."
     wiki_commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
                                  capture_output=True, text=True).stdout.strip()
@@ -248,12 +282,10 @@ def render(flow_id, force=False):
         _fail(f"render UAT REFUSED: the spec entries of {flow_id} are not in "
               f"journey order - the validator reads the previous entry as the "
               f"predecessor, so list them in the journey's order.")
-    ids_by_jid = {}
-    seq_by_ac = {}
-    for e in journey:
-        ac = resolve_ref(e["ref"])[1]
-        seq_by_ac[ac] = seq_by_ac.get(ac, 0) + 1
-        ids_by_jid[e["id"]] = tc_id(cfg, spec["story_num"], ac, seq_by_ac[ac])
+    ids_by_jid = allocate_ids(
+        journey, lambda jid: spec["scenario_id"].format(jid=jid),
+        manifest.get("bindings", {}),
+        lambda ac, seq: tc_id(cfg, spec["story_num"], ac, seq))
 
     def binding_of(sc):
         return manifest.get("bindings", {}).get(sc)
@@ -350,6 +382,7 @@ def render(flow_id, force=False):
             "covers": covers, "coverage_items": items,
             "verifies_rules": [], "uses_terms": [],
             "technique": "UC", "scenario_id": sc, "priority": w["priority"],
+            "run": run_name,
             "section": w["area"], "order": journey.index(e) + 1,
             "continue_from": (ids_by_jid[cont].removeprefix("UAT-")
                               if cont is not None else None),

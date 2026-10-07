@@ -42,7 +42,7 @@ describe('SheetView', () => {
 
   it('clips an unwrapped cell only when the cell to its right holds text', () => {
     const { cellAt } = draw()
-    // "Test Steps" (unwrapped) sits beside "AI Remarks": the spill stops at the border
+    // "Test Steps" (unwrapped) sits beside "Test Case Remarks": the spill stops at the border
     expect(cellAt(1, 2)!.className).toContain('wb-clip')
     // the formula row's neighbours are empty: its text may spill, as in Excel
     expect(cellAt(5, 1)!.className).toContain('wb-nowrap')
@@ -136,7 +136,7 @@ describe('SheetView', () => {
   it('links a question id and a Continue-from id to the rows they name', () => {
     draw()
     expect(screen.getByRole('link', { name: 'Q-US-X-01' }).getAttribute('href'))
-      .toBe('#loc/AI Doubts/2')
+      .toBe('#loc/Doubts/2')
     // row 4 continues from TC-...-01, which sits on row 3 of this sheet
     const cont = screen.getAllByRole('link', { name: 'TC-1.1-AC01-01' })
       .find((a) => a.className === 'wb-link')!

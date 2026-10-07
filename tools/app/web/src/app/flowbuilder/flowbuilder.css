@@ -68,3 +68,31 @@
   -webkit-box-orient: vertical; overflow: hidden; }
 .fb-node details select { width: 100%; margin-top: 4px; font: inherit; font-size: .74rem; color: var(--color-text);
   background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--radius-ctl); padding: 4px 6px; }
+
+/* Flow overview: the same canvas, read-only, with every flow merged onto it. */
+.fo-work { grid-template-columns: minmax(0, 1fr) 320px; }
+.fo-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: .8rem; color: var(--color-muted); cursor: pointer; }
+.fo-node { width: 260px; transition: opacity .15s; }
+.fo-node.fo-dim { opacity: .22; }
+.fo-title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.fo-end { margin-top: 4px; }
+.fo-variant { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--color-border); font-size: .74rem; }
+.fo-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.fo-chip { font-family: ui-monospace, Consolas, monospace; font-size: .66rem; border: 1px solid var(--color-border);
+  border-radius: 9px; padding: 0 6px; background: var(--color-bg); color: var(--color-text); white-space: nowrap; }
+.fo-chip.on { border-color: var(--color-accent); color: var(--color-accent); font-weight: 700; }
+.fo-flow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: center; width: 100%;
+  text-align: left; font: inherit; font-size: .78rem; color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-border); border-radius: var(--radius-ctl); padding: 6px 8px; margin: 6px 0; cursor: pointer; }
+.fo-flow .fb-dim { grid-column: 2; }
+.fo-flow.on { border-color: var(--color-accent); box-shadow: inset 3px 0 0 var(--color-accent); }
+.fo-flow:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+.fo-flow-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fo-clear { margin-top: 4px; }
+.fo-legend { list-style: none; padding: 0; margin: 0; color: var(--color-muted); font-size: .74rem; display: grid; gap: 5px; }
+.fo-legend li { display: flex; gap: 8px; align-items: center; }
+.fo-sw { width: 14px; height: 10px; border-radius: 3px; border: 1.5px solid var(--color-border); flex: none; }
+.fo-sw.main { border-color: var(--color-accent); }
+.fo-sw.alt { border-color: var(--color-attn); }
+.fb-page .react-flow__edge.fo-dim { opacity: .15; }
+.fb-page .react-flow__edge-text { font-family: ui-monospace, Consolas, monospace; font-size: 10px; }

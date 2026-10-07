@@ -13,7 +13,7 @@ import type { ConfidenceLevel, TcGroup, TcLevel, TcRow, TestCasesPayload } from 
 
 export type { TcFilters } from './filters'
 
-const COLUMNS = ['ID', 'Scenario', 'Test Steps', 'Field / Values', 'Expected Results', 'AI Confidence', 'AI Remarks']
+const COLUMNS = ['ID', 'Scenario', 'Test Steps', 'Field / Values', 'Expected Results', 'Confidence', 'Test Case Remarks']
 const CONFIDENCE: ConfidenceLevel[] = ['High', 'Medium', 'Low']
 const GROUP_WORD = { run: 'Run', flow: 'Flow', module: 'Module' } as const
 

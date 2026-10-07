@@ -55,7 +55,7 @@ Commands:
                         turn an answered doubts card into asserted Resolutions
                         (all or nothing; refuses a stale or unanswerable card)
   doubts observe --workbook <xlsx> --by <tester>
-                        record the Observation column of the workbook's AI Doubts
+                        record the Observation column of the workbook's Doubts
                         sheet; it becomes the proposed answer on the next card
   tc edit <id> --field <field> --from <path> --by <human>
                         HUMAN rewording of one field of one test case, in its

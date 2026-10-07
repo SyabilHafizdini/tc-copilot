@@ -243,7 +243,7 @@ UAT flow) then `seal`; after a correcting answer, write the answer to the
 question's `home`, rewrite the parts, render, and confirm on a new card.
 
 `doubts observe` is the tester's route. A tester fills the `Observation`
-(and optionally `Observed by`, `Date`) columns of the `AI Doubts` sheet in the
+(and optionally `Observed by`, `Date`) columns of the `Doubts` sheet in the
 exported workbook; `doubts observe` reads the sheet (columns found by header
 text) and appends one entry per filled row to
 `doubts/observations/<STORY>.yaml` (question, the text verbatim, who, when, the
@@ -252,7 +252,7 @@ trailer: nothing is asserted). Rows with Question ID `-` or an unknown id are
 reported as skipped; running it again on the same workbook appends nothing.
 It refuses (exit 1, `doubts observe refused: ...`, nothing written) when
 `--workbook` or `--by` is missing, the file is absent or not an xlsx, there is
-no `AI Doubts` sheet, or the `Question ID` / `Observation` column is missing.
+no `Doubts` sheet, or the `Question ID` / `Observation` column is missing.
 An observation is evidence, not an assertion, and never lifts a level. On the
 next `doubts card` the latest observation of an `ask` question is its
 `proposed` text, with `proposed_origin: tester-observation`, `observed_by`,

@@ -10,6 +10,7 @@ import { Dashboard } from './dashboard/Dashboard'
 import { DocumentsPage } from './documents/DocumentsPage'
 import { ExplorePage } from './explore/ExplorePage'
 import { FlowBuilderPage } from './flowbuilder/FlowBuilderPage'
+import { FlowOverviewPage } from './flowbuilder/FlowOverviewPage'
 import { ActivityPage } from './pages/ActivityPage'
 import { BoardPage } from './pages/BoardPage'
 import { ChangesPage } from './pages/ChangesPage'
@@ -118,6 +119,7 @@ export default function App() {
       return <WorkbookPage wbKind={view.wbKind} file={view.file} sheet={view.sheet} row={view.row} />
     }
     if (view.kind === 'flowbuilder') return <FlowBuilderPage theme={theme} />
+    if (view.kind === 'flows') return <FlowOverviewPage theme={theme} />
     // Everything below reads from the state snapshot.
     if (!state) return <PageSkeleton />
     switch (view.kind) {

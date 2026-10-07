@@ -146,7 +146,7 @@ record. Do this, every time:
 ## Tester route
 
 A tester can answer from the workbook: they fill `Observation` (and `Observed
-by`, `Date`) on the `AI Doubts` sheet. When the human gives you a filled
+by`, `Date`) on the `Doubts` sheet. When the human gives you a filled
 workbook, run `py tools/wiki.py doubts observe --workbook <xlsx> --by
 <tester>`; it records the text verbatim in `doubts/observations/<STORY>.yaml`.
 On the next `doubts card` the observation is the question's `proposed` text
