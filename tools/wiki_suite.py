@@ -34,6 +34,10 @@ def tc_sort_key(fm):
             return ("", (), 0, pos, fm["id"])
     m = re.match(r"^(?:UAT-)?(\d[\d.]*)-AC(\d+)-(\d+)$", fm["id"])
     if not m:
+        if isinstance(fm.get("order"), int):
+            # A story number that is not numeric ("ABC-001-AC01-01") still
+            # reads in the spec's run order, not in id order.
+            return (fm.get("module") or "", (), 0, fm["order"], fm["id"])
         return (fm.get("module") or "", (), 999, 999, fm["id"])
     prefix = tuple(int(p) for p in m.group(1).split("."))
     if isinstance(fm.get("order"), int):

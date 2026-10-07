@@ -142,6 +142,21 @@ def test_the_sheet_writes_exactly_what_tc_cells_returns():
     _assert_sheet_equals_cells(tcs, _concepts(), {})
 
 
+def test_run_order_holds_for_a_story_number_that_is_not_numeric():
+    """Rows and sheets follow the spec's run order (`order`) whatever the id
+    looks like: an id with a lettered story number must not fall back to id
+    order, which would put a later run's first case among the first run's."""
+    def fm(tid, order, run):
+        return {"id": tid, "module": "/modules/m.md", "order": order, "run": run,
+                "covers": ["/stories/US-X.md#HS-01"]}
+    tcs = [fm("ABC-001-AC01-01", 1, "Main"), fm("ABC-001-AC05-02", 2, "Main"),
+           fm("ABC-001-AC05-01", 3, "Main"), fm("ABC-001-AC01-02", 4, "Variant")]
+    got = sorted(reversed(tcs), key=wiki_suite.tc_sort_key)
+    assert [t["id"] for t in got] == [t["id"] for t in tcs], [t["id"] for t in got]
+    runs = [name for name, _t in wiki_suite.run_groups([(None, t, "") for t in got])]
+    assert runs == ["Main", "Variant"], runs
+
+
 def test_plan_sheets_is_one_sheet_per_run_else_one_per_module():
     tcs = [_tc(1), _tc(2), _tc(3, run="Variant flow")]
     names = [s[0] for s in wiki_suite.plan_sheets(tcs, _concepts())]
