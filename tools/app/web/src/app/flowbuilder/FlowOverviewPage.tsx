@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Background, Controls, Handle, MiniMap, Position, ReactFlow, ReactFlowProvider,
   useNodesState, useReactFlow,
@@ -18,7 +18,7 @@ import { mergeFlows, shortLabel, type Overview, type OvNode } from './overview'
  * permutations read as lanes parting from and rejoining a common path.
  * Clicking a step opens, in the side panel, the test case each flow runs
  * there, as its workbook row prints it. A second tab, Test cases, lists every
- * flow's test cases whole, one flow at a time, as the rows of its worksheet.
+ * flow's test cases whole in one table, as the rows of the workbook.
  * Read-only: flows are drawn in the Flow Builder and asserted in alignment.
  *
  * Export downloads this page as one standalone file: the app bundle with the
@@ -160,57 +160,64 @@ function StepDetail({ step, model, focus, onClose }: {
   )
 }
 
-/* The Test cases tab: one flow's test cases in journey order, laid out as its
- * worksheet is - a row per test case under its section heading. */
-function CasesView({ model, flow, onFlow }: {
-  model: BuilderModel; flow: string | null; onFlow: (id: string) => void
-}) {
+/* The Test cases tab: every flow's test cases in one table, laid out as the
+ * workbook is - a heading per flow, then a row per test case in journey order
+ * under its section heading. Opens scrolled to the flow being traced. */
+function CasesView({ model, flow }: { model: BuilderModel; flow: string | null }) {
   const flows = model.flows.filter((f) => f.journey.length)
-  const shown = flows.find((f) => f.id === flow) ?? flows[0]
-  if (!shown) return <div className="fo-cases"><p className="fb-dim fo-cases-none">No flows yet.</p></div>
-  let section: string | null = null
+  const wrap = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = flow ? wrap.current?.querySelector<HTMLElement>(`[data-flow="${flow}"]`) : null
+    const head = wrap.current?.querySelector('thead th')   // a pinned cell, not the row that scrolls away
+    if (!row || !head || !wrap.current) return
+    // bring the flow's heading up to just below the column headings, which stay pinned
+    wrap.current.scrollTop += row.getBoundingClientRect().top - head.getBoundingClientRect().bottom
+  }, [flow])
+  if (!flows.length) return <div className="fo-cases"><p className="fb-dim fo-cases-none">No flows yet.</p></div>
   return (
-    <div className="fo-cases">
-      <div className="fo-sheets" role="tablist" aria-label="Flows">
-        {flows.map((f) => (
-          <button key={f.id} role="tab" aria-selected={f.id === shown.id}
-            className={`fo-sheet${f.id === shown.id ? ' on' : ''}`} onClick={() => onFlow(f.id)}>
-            <span className="fo-chip">{shortLabel(f.id)}</span>{f.title || f.id}
-          </button>
-        ))}
-      </div>
-      <div className="fo-table-wrap">
-        <table className="fo-table">
-          <thead>
-            <tr>
-              <th>Test Case ID</th><th>Scenario</th><th>Test Steps</th><th>Field / Values</th>
-              <th>Expected Results</th><th>Confidence</th><th>Test Case Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.journey.flatMap((j) => {
-              const tc = model.journey_tcs?.[`${shown.id}#${j.id}`]
-              const rows = []
+    <div className="fo-cases" ref={wrap}>
+      <table className="fo-table">
+        <thead>
+          <tr>
+            <th>Test Case ID</th><th>Scenario</th><th>Test Steps</th><th>Field / Values</th>
+            <th>Expected Results</th><th>Confidence</th><th>Test Case Remarks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {flows.flatMap((f) => {
+            let section: string | null = null
+            const rows = [
+              <tr key={f.id} className="fo-flowrow" data-flow={f.id}>
+                <th colSpan={7} scope="colgroup">
+                  <span className="fo-chip">{shortLabel(f.id)}</span>{f.title || f.id}
+                </th>
+              </tr>,
+            ]
+            f.journey.forEach((j) => {
+              const tc = model.journey_tcs?.[`${f.id}#${j.id}`]
               if (tc?.section && tc.section !== section) {
                 section = tc.section
-                rows.push(<tr key={`s-${j.id}`} className="fo-section"><th colSpan={7} scope="colgroup">{tc.section}</th></tr>)
+                rows.push(
+                  <tr key={`${f.id}-s-${j.id}`} className="fo-section">
+                    <th colSpan={7} scope="colgroup">{tc.section}</th>
+                  </tr>)
               }
               rows.push(tc
-                ? <tr key={j.id}>
+                ? <tr key={`${f.id}-${j.id}`}>
                     <td><b className="fo-tcid">{tc.id}</b></td>
                     <td>{cellText(tc.scenario)}</td><td>{cellText(tc.steps)}</td><td>{cellText(tc.data)}</td>
                     <td>{cellText(tc.expected)}</td><td><Conf level={tc.confidence} /></td>
                     <td>{cellText(tc.remarks)}</td>
                   </tr>
-                : <tr key={j.id}>
+                : <tr key={`${f.id}-${j.id}`}>
                     <td><b className="fo-tcid">{j.id}</b></td>
                     <td colSpan={6} className="fb-dim">No test case has been generated for this step of the flow yet.</td>
                   </tr>)
-              return rows
-            })}
-          </tbody>
-        </table>
-      </div>
+            })
+            return rows
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -223,8 +230,6 @@ function Canvas({ model, theme, onToggleTheme }: {
   const [focus, setFocus] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
   const [tab, setTab] = useState<'chart' | 'cases'>('chart')
-  // the flow the Test cases tab shows: the traced one, until another is chosen there
-  const [sheet, setSheet] = useState<string | null>(null)
   const overview = useMemo(() => mergeFlows(model, split), [model, split])
   const criteria = useMemo(() => criteriaOf(model), [model])
   const [nodes, setNodes, onNodesChange] = useNodesState<OvFlowNode>(overview.nodes.map(toFlowNode))
@@ -273,7 +278,7 @@ function Canvas({ model, theme, onToggleTheme }: {
             <button role="tab" aria-selected={tab === 'chart'} className={tab === 'chart' ? 'on' : ''}
               onClick={() => setTab('chart')}>Flow overview</button>
             <button role="tab" aria-selected={tab === 'cases'} className={tab === 'cases' ? 'on' : ''}
-              onClick={() => { setSheet(focus); setTab('cases') }}>Test cases</button>
+              onClick={() => setTab('cases')}>Test cases</button>
           </div>
           <div className="fb-actions">
             {tab === 'chart' && <>
@@ -294,7 +299,7 @@ function Canvas({ model, theme, onToggleTheme }: {
                   title="Download this overview as one standalone file to share">Export</a>}
           </div>
         </div>
-        {tab === 'cases' && <CasesView model={model} flow={sheet} onFlow={setSheet} />}
+        {tab === 'cases' && <CasesView model={model} flow={focus} />}
         {/* the chart stays mounted behind the other tab, so dragged steps and the zoom are kept */}
         <div className="fb-work fo-work"
           style={{ gridTemplateColumns: `minmax(0, 1fr) ${width}px`, display: tab === 'chart' ? undefined : 'none' }}>
