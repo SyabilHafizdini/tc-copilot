@@ -129,6 +129,22 @@ def create_app():
         except (SystemExit, Exception) as e:
             return _crash_response(e)
 
+    @app.get("/api/flow_overview.html")
+    def flow_overview_export(request: Request):
+        """The Flow Overview as one standalone file, for sharing: the app
+        bundle with the flows baked in. A download, read-only."""
+        if not _host_ok(request):
+            return JSONResponse({"error": "forbidden"}, status_code=403)
+        try:
+            from wiki import load_all, load_config
+            from wiki_flowdraft import builder_model, overview_html
+            html = overview_html(builder_model(load_all()[0], load_config()),
+                                 BUNDLE.read_text(encoding="utf-8"))
+        except (SystemExit, Exception) as e:
+            return _crash_response(e)
+        return Response(html, media_type="text/html; charset=utf-8", headers={
+            "Content-Disposition": 'attachment; filename="flow-overview.html"'})
+
     @app.get("/api/explorer")
     def explorer(request: Request):
         if not _host_ok(request):

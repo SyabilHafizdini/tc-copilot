@@ -8,13 +8,25 @@ import '@xyflow/react/dist/style.css'
 import './flowbuilder.css'
 import { getFlowBuilder, onChange } from '../api'
 import type { BuilderModel } from '../api'
+import { Moon, Sun } from 'lucide-react'
 import { Banner, PageSkeleton } from '../ui'
 import { mergeFlows, shortLabel, type Overview, type OvNode } from './overview'
 
 /* Flow overview: every flow's journey on one canvas. Steps the flows share are
  * one node; where a flow leaves the others it gets its own node, so the
  * permutations read as lanes parting from and rejoining a common path.
- * Read-only: flows are drawn in the Flow Builder and asserted in alignment. */
+ * Read-only: flows are drawn in the Flow Builder and asserted in alignment.
+ *
+ * Export downloads this page as one standalone file: the app bundle with the
+ * flows baked in (see bakedOverview), which opens to the same canvas with no
+ * server behind it. */
+
+type Theme = 'light' | 'dark'
+const EXPORT_HREF = '/api/flow_overview.html'
+
+// The flows an exported file carries, or null in the running app.
+export const bakedOverview = (): BuilderModel | null =>
+  (window as { __TC_FLOW_OVERVIEW__?: BuilderModel }).__TC_FLOW_OVERVIEW__ ?? null
 
 type Criterion = { ac: string; title: string }
 type OvFlowNode = Node<{ step: OvNode }, 'ovstep'>
@@ -76,7 +88,10 @@ const NODE_TYPES = { ovstep: StepView }
 const toFlowNode = (n: OvNode): OvFlowNode =>
   ({ id: n.id, type: 'ovstep', position: { x: n.x, y: n.y }, data: { step: n } })
 
-function Canvas({ model, theme }: { model: BuilderModel; theme: 'light' | 'dark' }) {
+function Canvas({ model, theme, onToggleTheme }: {
+  model: BuilderModel; theme: Theme
+  onToggleTheme?: () => void   // given only in an exported file, which has no top bar
+}) {
   const [split, setSplit] = useState(false)
   const [focus, setFocus] = useState<string | null>(null)
   const overview = useMemo(() => mergeFlows(model, split), [model, split])
@@ -119,6 +134,13 @@ function Canvas({ model, theme }: { model: BuilderModel; theme: 'light' | 'dark'
               Split steps by data
             </label>
             <button className="btn" onClick={fit} disabled={!nodes.length}>Fit</button>
+            {onToggleTheme
+              ? <button className="icon-btn" onClick={onToggleTheme}
+                  aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+                  {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+                </button>
+              : <a className="btn" href={EXPORT_HREF} download="flow-overview.html"
+                  title="Download this overview as one standalone file to share">Export</a>}
           </div>
         </div>
         <div className="fb-work fo-work">
@@ -169,7 +191,7 @@ function Canvas({ model, theme }: { model: BuilderModel; theme: 'light' | 'dark'
   )
 }
 
-export function FlowOverviewPage({ theme }: { theme: 'light' | 'dark' }) {
+export function FlowOverviewPage({ theme }: { theme: Theme }) {
   const [model, setModel] = useState<BuilderModel | null>(null)
   const [error, setError] = useState<string | null>(null)
   useEffect(() => {
@@ -180,4 +202,20 @@ export function FlowOverviewPage({ theme }: { theme: 'light' | 'dark' }) {
   if (error) return <div className="page"><Banner tone="blocked">{error}</Banner></div>
   if (!model) return <PageSkeleton />
   return <ReactFlowProvider><Canvas model={model} theme={theme} /></ReactFlowProvider>
+}
+
+/* What an exported file renders in place of the app: the canvas alone, over
+ * the flows baked into the file. */
+export function FlowOverviewExport({ model }: { model: BuilderModel }) {
+  const [theme, setTheme] = useState<Theme>(
+    () => (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'))
+  useEffect(() => { document.documentElement.dataset.theme = theme }, [theme])
+  useEffect(() => { document.title = `Flow overview - ${model.project}` }, [model])
+  return (
+    <div className="fo-export">
+      <ReactFlowProvider>
+        <Canvas model={model} theme={theme} onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')} />
+      </ReactFlowProvider>
+    </div>
+  )
 }
