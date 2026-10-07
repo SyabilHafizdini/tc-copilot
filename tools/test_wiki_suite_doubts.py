@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Doubts sheet and question ids in Remarks
+"""Doubts sheet and question ids in Test Case Remarks
 (run: py tools/test_wiki_suite_doubts.py)."""
 import sys
 import tempfile

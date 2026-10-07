@@ -48,7 +48,7 @@ describe('TestCaseGrid', () => {
   it('has the workbook columns', () => {
     render(<TestCaseGrid payload={PAYLOAD} />)
     expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(
-      ['ID', 'Scenario', 'Test Steps', 'Field / Values', 'Expected Results', 'Confidence', 'Remarks'])
+      ['ID', 'Scenario', 'Test Steps', 'Field / Values', 'Expected Results', 'Confidence', 'Test Case Remarks'])
   })
 
   it('groups rows per run / flow with a Section row where the section changes', () => {

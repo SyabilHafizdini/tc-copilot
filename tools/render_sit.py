@@ -167,7 +167,7 @@ def overall_confidence(conf):
 
 def confidence_parts(conf, rem):
     """{part: {level, remark}} in column order - the frontmatter form the
-    export reads to build the Remarks cell."""
+    export reads to build the Test Case Remarks cell."""
     rem = rem or {}
     return {p: {"level": conf[p], "remark": str(rem.get(p) or "").strip()}
             for p in CONF_PARTS}

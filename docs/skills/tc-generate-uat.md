@@ -48,7 +48,7 @@ the flow's file name, not its id.
    Each test case also carries its stage as `section` and a confidence
    level with a remark for each of four parts (scenario, steps, data,
    expected) in the spec entry's `confidence` and `remarks`, shown in the
-   workbook's `Confidence` and `Remarks` columns.
+   workbook's `Confidence` and `Test Case Remarks` columns.
 2. **Draft export.** Right after the first seal:
 
    ```

@@ -155,7 +155,7 @@ def select(suite, concepts):
 # TC sheet columns A-L; F-L are execution columns left blank for testers.
 
 TC_COLS = ("Test Case ID", "Scenario", "Test Steps", "Field / Values",
-           "Expected Results", "Confidence", "Remarks",
+           "Expected Results", "Confidence", "Test Case Remarks",
            "Actual Results", "Status", "Tested by",
            "Date Tested", "Retested by", "Retested Date", "Remarks")
 COL_W = dict(zip("ABCDEFGHIJKLMN",
@@ -198,7 +198,7 @@ def _styles():
 
 
 def _confidence_remarks(fm, qmap=None):
-    """The Remarks cell: one `**Column**: Level - remark` line per reviewed
+    """The Test Case Remarks cell: one `**Column**: Level - remark` line per reviewed
     column (tc-style R7). Falls back to a single remark for a test case
     rendered before confidence was rated per part. `qmap` maps a doubt id
     (`<scenario_id>#<part>`) to its question id, shown as `Level [Q-...]`."""

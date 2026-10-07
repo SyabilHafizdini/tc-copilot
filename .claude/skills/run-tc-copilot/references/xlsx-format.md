@@ -25,7 +25,7 @@ header-block values (project code/name, system, roles row) come from
   `C-TC-<sec> (<module>)` (§sec parsed from the module description). Two
   sheets that would share a name refuse the export. Columns A-N:
   ID / Scenario / Test Steps / Field / Values / Expected Results / AI
-  Confidence / Remarks (F, G - tc-style R7: overall level, then one
+  Confidence / Test Case Remarks (F, G - tc-style R7: overall level, then one
   `Column: Level - remark` line per reviewed column), then a blank green
   execution grid (H-N: Actual Results … Remarks) for testers. Each sheet has
   its own blue header row and its own `<Pre-condition>` block (the lines shared
