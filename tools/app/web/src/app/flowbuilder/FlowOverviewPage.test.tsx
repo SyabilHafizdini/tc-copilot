@@ -131,6 +131,35 @@ describe('FlowOverviewPage', () => {
     await waitFor(() => expect(work.style.gridTemplateColumns).toContain('540px'))
   })
 
+  it('lists the test cases of a flow whole on the Test cases tab', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    fireEvent.click(screen.getByRole('tab', { name: 'Test cases' }))
+    // the chart's own controls step aside; the first flow's sheet is shown
+    expect(screen.queryByRole('switch', { name: 'Split steps by data' })).toBeNull()
+    expect(screen.getByRole('tab', { name: /Citizen couple/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByText(/No test case has been generated/)).toHaveLength(2)
+    fireEvent.click(screen.getByRole('tab', { name: /Resident couple/ }))
+    const table = screen.getByRole('table')
+    expect(table).toHaveTextContent('Test Case IDScenarioTest StepsField / ValuesExpected ResultsConfidenceTest Case Remarks')
+    // a section heading, then the row as the workbook prints it
+    expect(screen.getByRole('columnheader', { name: 'Partner' })).toBeInTheDocument()
+    expect(table).toHaveTextContent('TC-DMO-SC02-AC02-01Resident adds a partner1. Click Add partner-1. The partner is listedMedium')
+    // back on the chart, nothing was lost
+    fireEvent.click(screen.getByRole('tab', { name: 'Flow overview' }))
+    expect(screen.getByRole('switch', { name: 'Split steps by data' })).toBeChecked()
+    expect(steps()).toHaveLength(3)
+  })
+
+  it('opens the Test cases tab on the flow being traced', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    fireEvent.click(screen.getByRole('button', { name: /Resident couple/ }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Test cases' }))
+    expect(screen.getByRole('tab', { name: /Resident couple/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByText('TC-DMO-SC02-AC02-01')).toBeInTheDocument()
+  })
+
   it('says so when there are no flows', async () => {
     vi.mocked(api.getFlowBuilder).mockResolvedValue({ ...MODEL, flows: [] })
     render(<FlowOverviewPage theme="light" />)

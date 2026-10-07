@@ -133,3 +133,31 @@
 .fo-conf.high { color: var(--color-ready); background: color-mix(in srgb, var(--color-ready) 16%, transparent); }
 .fo-conf.medium { color: var(--color-attn); background: color-mix(in srgb, var(--color-attn) 16%, transparent); }
 .fo-conf.low { color: var(--color-blocked); background: color-mix(in srgb, var(--color-blocked) 16%, transparent); }
+/* the two views of the page, as a segmented control beside the title */
+.fb-page .page-head { gap: 16px; }
+.fo-tabs { display: inline-flex; margin-right: auto; padding: 3px; border-radius: var(--radius-ctl); background: var(--color-subtle); }
+.fo-tabs button { font: inherit; font-size: .8rem; font-weight: 600; padding: 5px 14px; border: none; border-radius: var(--radius-ctl);
+  background: transparent; color: var(--color-muted); cursor: pointer; }
+.fo-tabs button.on { background: var(--color-panel); color: var(--color-text); box-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
+.fo-tabs button:focus-visible, .fo-sheet:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+/* Test cases tab: flows as sheet tabs over one worksheet-like table */
+.fo-cases { flex: none; height: calc(100vh - 168px); min-height: 420px; display: flex; flex-direction: column;
+  border: 1px solid var(--color-border); border-radius: var(--radius-ctl); background: var(--color-panel); overflow: hidden; }
+.fo-export .fo-cases { height: calc(100vh - 86px); }
+.fo-cases-none { padding: 16px; }
+.fo-sheets { flex: none; display: flex; gap: 4px; overflow-x: auto; padding: 8px 10px 0; border-bottom: 1px solid var(--color-border); }
+.fo-sheet { flex: none; display: inline-flex; gap: 7px; align-items: center; font: inherit; font-size: .78rem; padding: 6px 10px; cursor: pointer;
+  border: 1px solid transparent; border-bottom: 2px solid transparent; background: transparent; color: var(--color-muted); white-space: nowrap; }
+.fo-sheet:hover { color: var(--color-text); }
+.fo-sheet.on { color: var(--color-text); font-weight: 600; border-bottom-color: var(--color-accent); }
+.fo-sheet.on .fo-chip { border-color: var(--color-accent); color: var(--color-accent); }
+.fo-table-wrap { flex: 1; min-height: 0; overflow: auto; }
+.fo-table { width: 100%; min-width: 1500px; border-collapse: collapse; table-layout: fixed; font-size: .8rem; }
+.fo-table th, .fo-table td { border: 1px solid var(--color-border); padding: 7px 9px; text-align: left; vertical-align: top; }
+.fo-table td { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.fo-table thead th { position: sticky; top: 0; z-index: 2; background: var(--color-elev); font-size: .7rem; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--color-muted); box-shadow: 0 1px 0 var(--color-border); }
+.fo-table thead th:nth-child(1) { width: 10%; } .fo-table thead th:nth-child(2) { width: 17%; }
+.fo-table thead th:nth-child(3) { width: 20%; } .fo-table thead th:nth-child(4) { width: 10%; }
+.fo-table thead th:nth-child(5) { width: 22%; } .fo-table thead th:nth-child(6) { width: 6%; }
+.fo-table .fo-section th { background: var(--color-subtle); font-weight: 700; }
