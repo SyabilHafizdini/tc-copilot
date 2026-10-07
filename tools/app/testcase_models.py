@@ -251,3 +251,20 @@ def _build():
             if sec and sec not in seen[key]["sections"]:
                 seen[key]["sections"].append(sec)
     return {"rows": rows, "groups": groups}
+
+
+def journey_rows(rows):
+    """{"<flow id>#<journey entry id>": row} for the active test cases that
+    walk a flow, each as the workbook prints it: the Flow Overview shows this
+    beside the step a test case covers. Pure over `testcases()["rows"]`."""
+    out = {}
+    for r in rows:
+        if r.get("status") != "active":
+            continue
+        for ref in r.get("covers") or []:
+            tgt, frag = resolve_ref(ref)
+            if tgt.startswith("flows/") and frag:
+                out[f"{tgt[len('flows/'):]}#{frag}"] = {
+                    "id": r["display_id"], "section": r.get("section"),
+                    "confidence": r.get("confidence") or "", **r["cells"]}
+    return out

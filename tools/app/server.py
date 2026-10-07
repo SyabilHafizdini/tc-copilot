@@ -84,6 +84,19 @@ def _crash_response(exc):
         status_code=500)
 
 
+def _flow_model():
+    """The Flow Builder read model, plus what the Flow Overview adds to it:
+    the page title a project may set (config `flow_overview.title`) and the
+    test case row behind each journey entry."""
+    from wiki import load_all, load_config
+    from wiki_flowdraft import builder_model
+    cfg = load_config()
+    model = builder_model(load_all()[0], cfg)
+    model["overview_title"] = ((cfg.get("flow_overview") or {}).get("title") or "").strip() or None
+    model["journey_tcs"] = testcase_models.journey_rows(testcase_models.testcases()["rows"])
+    return model
+
+
 @asynccontextmanager
 async def _lifespan(app):
     yield
@@ -123,9 +136,7 @@ def create_app():
         if not _host_ok(request):
             return JSONResponse({"error": "forbidden"}, status_code=403)
         try:
-            from wiki import load_all, load_config
-            from wiki_flowdraft import builder_model
-            return builder_model(load_all()[0], load_config())
+            return _flow_model()
         except (SystemExit, Exception) as e:
             return _crash_response(e)
 
@@ -136,10 +147,8 @@ def create_app():
         if not _host_ok(request):
             return JSONResponse({"error": "forbidden"}, status_code=403)
         try:
-            from wiki import load_all, load_config
-            from wiki_flowdraft import builder_model, overview_html
-            html = overview_html(builder_model(load_all()[0], load_config()),
-                                 BUNDLE.read_text(encoding="utf-8"))
+            from wiki_flowdraft import overview_html
+            html = overview_html(_flow_model(), BUNDLE.read_text(encoding="utf-8"))
         except (SystemExit, Exception) as e:
             return _crash_response(e)
         return Response(html, media_type="text/html; charset=utf-8", headers={

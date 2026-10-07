@@ -110,3 +110,25 @@
 .fo-toggle input:checked + .fo-switch { background: var(--color-accent); }
 .fo-toggle input:checked + .fo-switch::after { transform: translateX(14px); }
 .fo-toggle input:focus-visible + .fo-switch { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* the side panel: its left edge drags to resize; a picked step shows its test cases there */
+.fo-panel { position: relative; }
+.fo-resize { position: absolute; left: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; z-index: 5; }
+.fo-resize:hover, .fo-resize:active { background: color-mix(in srgb, var(--color-accent) 35%, transparent); }
+.fo-node { cursor: pointer; }
+.fo-back { margin-bottom: 4px; }
+.fo-detail-title { font-weight: 600; font-size: .9rem; margin: 2px 0 4px; }
+.fo-tcbox { border: 1px solid var(--color-border); border-radius: var(--radius-ctl); margin-top: 6px; background: var(--color-panel); }
+.fo-tcbox > summary { display: flex; gap: 8px; align-items: center; padding: 7px 9px; cursor: pointer; list-style: none; }
+.fo-tcbox > summary::-webkit-details-marker { display: none; }
+.fo-tcbox > summary .fo-flow-title { flex: 1; min-width: 0; }
+.fo-tcbox[open] > summary { border-bottom: 1px solid var(--color-border); }
+.fo-tcbox > p { margin: 8px 9px 0; }
+.fo-note { font-style: italic; }
+.fo-tc { margin: 0; padding: 4px 9px 9px; }
+.fo-tc dt { font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-muted); margin-top: 9px; }
+.fo-tc dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.fo-tcid { font-family: ui-monospace, Consolas, monospace; }
+.fo-conf { flex: none; font-size: .66rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 1px 6px; border-radius: var(--radius-ctl); }
+.fo-conf.high { color: var(--color-ready); background: color-mix(in srgb, var(--color-ready) 16%, transparent); }
+.fo-conf.medium { color: var(--color-attn); background: color-mix(in srgb, var(--color-attn) 16%, transparent); }
+.fo-conf.low { color: var(--color-blocked); background: color-mix(in srgb, var(--color-blocked) 16%, transparent); }

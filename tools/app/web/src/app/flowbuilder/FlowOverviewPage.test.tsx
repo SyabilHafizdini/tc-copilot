@@ -28,6 +28,13 @@ const MODEL: BuilderModel = {
       journey: [step('J01', 'AC-1', 'Home shown'), step('J02', 'AC-2', 'Partner added', 'Blue card')] },
   ],
   tcs: {},
+  journey_tcs: {
+    'FLOW-DMO-SC02#J02': {
+      id: 'TC-DMO-SC02-AC02-01', section: 'Partner', confidence: 'Medium',
+      scenario: 'Resident adds a partner', steps: '1. Click **Add partner**', data: '',
+      expected: '1. The partner is listed', remarks: '**Test Steps**: Medium - inferred.',
+    },
+  },
 }
 
 const panel = () => document.querySelector('.fb-panel') as HTMLElement
@@ -83,6 +90,47 @@ describe('FlowOverviewPage', () => {
     expect(steps()).toHaveLength(3)
   })
 
+  it('opens a picked step on the test case each flow runs there', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    await waitFor(() => expect(steps()).toHaveLength(3))
+    fireEvent.click(screen.getByText('Blue card'))
+    expect(await screen.findByText('TC-DMO-SC02-AC02-01')).toBeInTheDocument()
+    // the row's cells, with the workbook's bold markers shown as bold
+    expect(panel()).toHaveTextContent('Test Steps1. Click Add partner')
+    expect(screen.getByText('Add partner').tagName).toBe('B')
+    expect(panel()).toHaveTextContent('Field / Values-')
+    expect(panel()).toHaveTextContent('Test Case RemarksTest Steps: Medium - inferred.')
+    expect(document.querySelector('.fo-node.selected')).not.toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Back to flows' }))
+    expect(panel()).toHaveTextContent('Flows (2)')
+  })
+
+  it('says so where a flow has no test case for the step yet', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    await waitFor(() => expect(steps()).toHaveLength(3))
+    fireEvent.click(screen.getByText('Pink card'))
+    expect(await screen.findByText(/No test case has been generated/)).toBeInTheDocument()
+  })
+
+  it('is headed by the title the project sets', async () => {
+    vi.mocked(api.getFlowBuilder).mockResolvedValue({ ...MODEL, overview_title: 'Two demo journeys' })
+    render(<FlowOverviewPage theme="light" />)
+    expect(await screen.findByRole('heading', { name: 'Two demo journeys' })).toBeInTheDocument()
+  })
+
+  it('has a side panel that can be dragged wider', async () => {
+    render(<FlowOverviewPage theme="light" />)
+    await screen.findByRole('heading', { name: 'Flow overview' })
+    const work = document.querySelector('.fo-work') as HTMLElement
+    expect(work.style.gridTemplateColumns).toContain('340px')
+    fireEvent.mouseDown(screen.getByRole('separator', { name: 'Resize the side panel' }), { clientX: 900 })
+    fireEvent.mouseMove(window, { clientX: 700 })
+    fireEvent.mouseUp(window)
+    await waitFor(() => expect(work.style.gridTemplateColumns).toContain('540px'))
+  })
+
   it('says so when there are no flows', async () => {
     vi.mocked(api.getFlowBuilder).mockResolvedValue({ ...MODEL, flows: [] })
     render(<FlowOverviewPage theme="light" />)
@@ -112,6 +160,7 @@ describe('FlowOverviewExport', () => {
     await waitFor(() => expect(steps()).toHaveLength(3))
     expect(api.getFlowBuilder).not.toHaveBeenCalled()
     expect(document.title).toBe('Flow overview - Demo')
+    expect(screen.getByRole('button', { name: 'Whole chart' })).toBeEnabled()
     // the same controls as in the app, bar the export itself
     fireEvent.click(screen.getByRole('switch', { name: 'Split steps by data' }))
     await waitFor(() => expect(steps()).toHaveLength(2))

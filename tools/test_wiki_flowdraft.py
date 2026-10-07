@@ -58,7 +58,9 @@ def test_overview_html_bakes_the_flows_into_the_bundle_without_test_cases():
                         "journey": [{"id": "J01", "end_state": "Home", "note": None,
                                      "ac_ref": "US-T#AC-1", "source_tc": "1.1-AC01-01",
                                      "branch": None}]}],
-             "tcs": {"1.1-AC01-01": {"id": "1.1-AC01-01", "title": "t", "acs": [], "sections": {}}}}
+             "tcs": {"1.1-AC01-01": {"id": "1.1-AC01-01", "title": "t", "acs": [], "sections": {}}},
+             "overview_title": "Demo journeys",
+             "journey_tcs": {"FLOW-T#J01": {"id": "TC-T-AC01-01", "steps": "1. Log in"}}}
     out = overview_html(model, '<!doctype html><html><head><meta charset="UTF-8"></head><body></body></html>')
     start = "<head><script>window.__TC_FLOW_OVERVIEW__ = "
     assert start in out and out.endswith("<body></body></html>")
@@ -70,6 +72,9 @@ def test_overview_html_bakes_the_flows_into_the_bundle_without_test_cases():
     assert baked["flows"][0]["journey"][0]["source_tc"] is None
     assert baked["tcs"] == {} and baked["stories"][0]["acs"][0]["tcs"] == []
     assert baked["stories"][0]["acs"][0]["title"] == "Login"
+    # the page title and each journey entry's own row travel with the file
+    assert baked["overview_title"] == "Demo journeys"
+    assert baked["journey_tcs"] == {"FLOW-T#J01": {"id": "TC-T-AC01-01", "steps": "1. Log in"}}
     # the caller's model is left as it was
     assert model["tcs"] and model["stories"][0]["acs"][0]["tcs"] == ["1.1-AC01-01"]
     try:

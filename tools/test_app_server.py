@@ -54,7 +54,7 @@ def test_flow_builder_endpoint_returns_its_read_model():
     """The Flow Builder page stitches from this: stories, flows, test cases."""
     r = CLIENT.get("/api/flow_builder")
     assert r.status_code == 200, r.text
-    assert {"stories", "flows", "tcs"} <= set(r.json()), sorted(r.json())
+    assert {"stories", "flows", "tcs", "overview_title", "journey_tcs"} <= set(r.json()), sorted(r.json())
     assert CLIENT.get("/api/flow_builder", headers={"Host": "evil.example"}).status_code == 403
 
 
