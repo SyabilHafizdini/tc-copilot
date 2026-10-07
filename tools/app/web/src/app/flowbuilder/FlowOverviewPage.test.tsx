@@ -160,7 +160,6 @@ describe('FlowOverviewExport', () => {
     await waitFor(() => expect(steps()).toHaveLength(3))
     expect(api.getFlowBuilder).not.toHaveBeenCalled()
     expect(document.title).toBe('Flow overview - Demo')
-    expect(screen.getByRole('button', { name: 'Whole chart' })).toBeEnabled()
     // the same controls as in the app, bar the export itself
     fireEvent.click(screen.getByRole('switch', { name: 'Split steps by data' }))
     await waitFor(() => expect(steps()).toHaveLength(2))

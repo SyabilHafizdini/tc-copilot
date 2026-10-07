@@ -195,7 +195,6 @@ function Canvas({ model, theme, onToggleTheme }: {
     }
   }), [overview, focus, total])
 
-  const fit = () => rf.fitView({ padding: 0.1, duration: 200 })
   // back to the chart as first opened: dragged steps return, no flow is
   // traced, no step is picked, and the view is the readable zoom at the start
   const reset = () => {
@@ -217,8 +216,6 @@ function Canvas({ model, theme, onToggleTheme }: {
               <span className="fo-switch" aria-hidden="true" />
               Split steps by data
             </label>
-            <button className="btn" onClick={fit} disabled={!nodes.length}
-              title="Zoom out until every step of every flow is in view">Whole chart</button>
             <button className="btn" onClick={reset} disabled={!nodes.length}
               title="Back to the chart as first opened: steps where they were drawn, all flows, the starting zoom">Reset chart</button>
             {onToggleTheme
