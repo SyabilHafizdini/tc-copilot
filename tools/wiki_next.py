@@ -257,6 +257,25 @@ def _unrendered(kind, key, value):
             if e["kind"] == kind and e[key] == value]
 
 
+def sit_tc_stats(manifest, story_rel):
+    """(sit, uat_active): story_tc_stats over the story's SIT test cases, and
+    how many ACTIVE UAT test cases cover it besides. A story scope is its SIT
+    test cases (wiki_rubric.SCOPE_TC_KIND): a flow's UAT test cases cover the
+    story's criteria too, and counting them here names a draft export that
+    then refuses the story for having no test cases. Keyed on the path
+    prefix, as flow_next counts UAT test cases."""
+    concepts = manifest.get("concepts") or {}
+    sit = story_tc_stats(
+        dict(manifest, concepts={r: e for r, e in concepts.items()
+                                 if not r.startswith("testcases/uat/")}),
+        story_rel)
+    uat = story_tc_stats(
+        dict(manifest, concepts={r: e for r, e in concepts.items()
+                                 if r.startswith("testcases/uat/")}),
+        story_rel)
+    return sit, uat["active"]
+
+
 def story_next(sid, fm, body, manifest, story_rel, concepts=None):
     """(state, command, skill) — first unmet precondition wins. `concepts`
     (collect_next passes them) makes the scope digest read the concept files
@@ -264,7 +283,7 @@ def story_next(sid, fm, body, manifest, story_rel, concepts=None):
     status = fm.get("status", "?")
     oq = open_questions(body)
     _cmap, _disp, cov = load_coverage(fm)
-    t = story_tc_stats(manifest, story_rel)
+    t, uat_active = sit_tc_stats(manifest, story_rel)
 
     if status == "draft":
         return ("draft — no ACs asserted yet",
@@ -305,7 +324,9 @@ def story_next(sid, fm, body, manifest, story_rel, concepts=None):
                 f"   # then: py tools/wiki.py seal",
                 "tc-resolve (render and seal the lifts)")
     if not t["active"]:
-        return ("aligned · coverage confirmed · 0 TCs",
+        return ("aligned · coverage confirmed · 0 TCs" if not uat_active else
+                f"aligned · coverage confirmed · 0 SIT TCs "
+                f"({uat_active} UAT TC(s) cover it through a flow)",
                 f"py tools/render_sit.py --story {sid} && py tools/wiki.py seal",
                 "tc-generate-sit (render)")
     return delivery_next(sid, "--story", f"{sid}-sit", manifest, story_rel,

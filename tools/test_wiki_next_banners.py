@@ -446,6 +446,32 @@ def test_story_next_reports_unrendered_lifts():
         wiki_next.load_coverage, wiki_next.story_tc_stats = orig_cov, orig_stats
 
 
+def test_story_next_does_not_take_uat_test_cases_for_the_story_set():
+    """A flow's UAT test cases cover the story's criteria, but the story's own
+    set is its SIT test cases: with none, the row says so and names the render,
+    never the draft export (which refuses a story with no SIT test case)."""
+    rel, fm, _body = _FIXTURE_STORY
+    manifest = {"concepts": {"testcases/uat/F/UAT-1": {"status": "active"},
+                             "testcases/uat/F/UAT-2": {"status": "active"}},
+                "edges": [["testcases/uat/F/UAT-1", "covers", rel + "#AC1"],
+                          ["testcases/uat/F/UAT-2", "covers", rel + "#AC1"]]}
+    orig_cov = wiki_next.load_coverage
+    wiki_next.load_coverage = lambda _fm: ({}, {}, "confirmed")
+    try:
+        state, cmd, skill = wiki_next.story_next(fm["id"], fm, "", manifest, rel)
+        assert state == ("aligned · coverage confirmed · 0 SIT TCs "
+                         "(2 UAT TC(s) cover it through a flow)"), state
+        assert cmd == (f"py tools/render_sit.py --story {fm['id']} "
+                       f"&& py tools/wiki.py seal"), cmd
+        assert skill == "tc-generate-sit (render)", skill
+        manifest["concepts"]["testcases/sit/m/T-1"] = {"status": "stale"}
+        manifest["edges"].append(["testcases/sit/m/T-1", "covers", rel + "#AC1"])
+        state, _cmd, _skill = wiki_next.story_next(fm["id"], fm, "", manifest, rel)
+        assert state == "aligned · coverage confirmed · 1 STALE TC(s)", state
+    finally:
+        wiki_next.load_coverage = orig_cov
+
+
 def test_flow_next_reports_unrendered_uat_lifts():
     fm = {"id": "FLOW-ZZ-FAKE", "status": "aligned",
           "journey": [{"id": "J01"}], "stories": []}
