@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { BuilderModel } from '../api'
 
 vi.mock('../api', async () => {
@@ -147,12 +147,13 @@ describe('FlowOverviewPage', () => {
     expect(screen.getByRole('columnheader', { name: 'Partner' })).toBeInTheDocument()
     expect(table).toHaveTextContent('TC-DMO-SC02-AC02-01Resident adds a partner1. Click Add partner-1. The partner is listedMedium')
     // one flow is chosen at the top; All brings the rest back
-    const pick = screen.getByRole('group', { name: 'Flow shown' })
-    expect(within(pick).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true')
-    fireEvent.click(within(pick).getByRole('button', { name: 'SC02' }))
+    const pick = screen.getByRole('combobox', { name: 'Flow shown' }) as HTMLSelectElement
+    expect([...pick.options].map((o) => o.textContent)).toEqual(['All flows (2)', 'Citizen couple', 'Resident couple'])
+    expect(pick.value).toBe('')
+    fireEvent.change(pick, { target: { value: 'FLOW-DMO-SC02' } })
     expect([...table.querySelectorAll('.fo-flowrow')].map((r) => r.textContent)).toEqual(['SC02Resident couple'])
     expect(screen.getAllByText(/No test case has been generated/)).toHaveLength(1)
-    fireEvent.click(within(pick).getByRole('button', { name: 'All' }))
+    fireEvent.change(pick, { target: { value: '' } })
     expect(table.querySelectorAll('.fo-flowrow')).toHaveLength(2)
     // back on the chart, nothing was lost
     fireEvent.click(screen.getByRole('tab', { name: 'Flow overview' }))
@@ -165,8 +166,7 @@ describe('FlowOverviewPage', () => {
     await screen.findByRole('heading', { name: 'Flow overview' })
     fireEvent.click(screen.getByRole('button', { name: /Resident couple/ }))
     fireEvent.click(screen.getByRole('tab', { name: 'Test cases' }))
-    const pick = screen.getByRole('group', { name: 'Flow shown' })
-    expect(within(pick).getByRole('button', { name: 'SC02' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('combobox', { name: 'Flow shown' })).toHaveValue('FLOW-DMO-SC02')
     expect(document.querySelectorAll('.fo-flowrow')).toHaveLength(1)
   })
 

@@ -163,7 +163,7 @@ function StepDetail({ step, model, focus, onClose }: {
 /* The Test cases tab: the flows' test cases in one table, laid out as the
  * workbook is - a heading per flow, then a row per test case in journey order
  * under its section heading. `flow` narrows it to one flow; the page head
- * holds the buttons that choose it. */
+ * holds the list that chooses it. */
 function CasesView({ model, flow }: { model: BuilderModel; flow: string | null }) {
   const all = model.flows.filter((f) => f.journey.length)
   const flows = all.some((f) => f.id === flow) ? all.filter((f) => f.id === flow) : all
@@ -228,7 +228,7 @@ function Canvas({ model, theme, onToggleTheme }: {
   const [picked, setPicked] = useState<string | null>(null)
   const [tab, setTab] = useState<'chart' | 'cases'>('chart')
   // the flow the Test cases tab is narrowed to (null: all of them). It opens
-  // on the traced flow and is then chosen with the buttons in the page head.
+  // on the traced flow and is then chosen from the list in the page head.
   const [sheet, setSheet] = useState<string | null>(null)
   const overview = useMemo(() => mergeFlows(model, split), [model, split])
   const criteria = useMemo(() => criteriaOf(model), [model])
@@ -282,14 +282,11 @@ function Canvas({ model, theme, onToggleTheme }: {
           </div>
           <div className="fb-actions">
             {tab === 'cases' && total > 0 && (
-              <div className="fo-pick" role="group" aria-label="Flow shown">
-                <button className={sheet === null ? 'on' : ''} aria-pressed={sheet === null}
-                  onClick={() => setSheet(null)}>All</button>
-                {overview.flows.map((f) => (
-                  <button key={f.id} className={sheet === f.id ? 'on' : ''} aria-pressed={sheet === f.id}
-                    title={f.title || f.id} onClick={() => setSheet(f.id)}>{f.label}</button>
-                ))}
-              </div>
+              <select className="fo-pick" aria-label="Flow shown" value={sheet ?? ''}
+                onChange={(e) => setSheet(e.target.value || null)}>
+                <option value="">All flows ({total})</option>
+                {overview.flows.map((f) => <option key={f.id} value={f.id}>{f.title || f.id}</option>)}
+              </select>
             )}
             {tab === 'chart' && <>
             <label className="fo-toggle">
