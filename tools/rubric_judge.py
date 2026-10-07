@@ -928,6 +928,23 @@ PATCH_FIELDS = {"data", "expected", "steps", "pre_extra", "post", "title",
                 "rules", "terms", "extra_covers", "area"}
 
 
+def _run_position(tcs, tc):
+    """Index at which an added test case goes so the spec stays in run order:
+    right after the test case it continues from, else after the last one of
+    its section, else after the last one of its run, else at the end."""
+    cf = str(tc.get("continue_from") or "")
+    for i, t in enumerate(tcs):
+        if cf == f"{t.get('ac')}/{t.get('seq')}":
+            return i + 1
+    for same in (lambda t: (t.get("run"), t.get("section")) ==
+                 (tc.get("run"), tc.get("section")),
+                 lambda t: t.get("run") == tc.get("run")):
+        at = [i for i, t in enumerate(tcs) if same(t)]
+        if at:
+            return at[-1] + 1
+    return len(tcs)
+
+
 def apply_patch(spec_path, patch_file):
     """Apply an improver patch list to a sit_spec YAML.
 
@@ -983,18 +1000,16 @@ def apply_patch(spec_path, patch_file):
             if key in index:
                 errs.append(f"{where}: ({key[0]}, seq {key[1]}) already exists")
                 continue
-            tcs.append(tc)
+            tcs.insert(_run_position(tcs, tc), tc)
             index[key] = tc
             applied += 1
         else:
             errs.append(f"{where}: unknown op {op!r} (set|add)")
     if errs:
         return 0, errs
-    # keep AC order then seq, matching the render convention
-    def _k(tc):
-        m = re.match(r"AC(\d+)", str(tc.get("ac", "")))
-        return (int(m.group(1)) if m else 10**6, tc.get("seq", 0))
-    spec["test_cases"] = sorted(tcs, key=_k)
+    # The list is in RUN order (a spec's runs and sections are contiguous and
+    # a test case continues from one above it), so it is never re-sorted.
+    spec["test_cases"] = tcs
     Path(spec_path).write_text(
         yaml.safe_dump(spec, sort_keys=False, allow_unicode=True, width=100),
         encoding="utf-8")

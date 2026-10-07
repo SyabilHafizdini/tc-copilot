@@ -222,6 +222,43 @@ def test_apply_patch_sets_a_field_and_adds_a_case():
         shutil.rmtree(d)
 
 
+def test_apply_patch_keeps_run_order_and_places_an_added_case_in_its_run():
+    """The spec is in run order, whatever the criterion ids look like: a patch
+    never re-sorts it, and an added case goes after the one it continues from."""
+    import yaml
+    from render_sit import validate_spec
+    d = _tmpdir()
+    try:
+        spec = _spec()
+        base = dict(spec["test_cases"][0], coverage_items=["X"])
+        spec["states"]["s2"] = "Step 2 done."
+        spec["test_cases"] = [
+            dict(base, ac="HS-01", seq=1),
+            dict(base, ac="HS-02", seq=2, continue_from="HS-01/1",
+                 starts_at="s1", ends_at="s1"),
+            dict(base, ac="HS-02", seq=1, continue_from="HS-02/2",
+                 starts_at="s1", ends_at="s2"),
+            dict(base, ac="HS-01", seq=2, run="Variant")]
+        sp = d / "US-J.yaml"
+        sp.write_text(yaml.safe_dump(spec, sort_keys=False), encoding="utf-8")
+        pf = d / "patch.json"
+        pf.write_text(json.dumps({"patches": [
+            {"op": "set", "ac": "HS-02", "seq": 1, "field": "expected",
+             "value": "1. saved"},
+            {"op": "add", "test_case": dict(
+                base, ac="HS-03", seq=1, continue_from="HS-02/1",
+                starts_at="s2", ends_at="s2")}]}), encoding="utf-8")
+        n, errs = rj.apply_patch(sp, pf)
+        assert errs == [] and n == 2, (n, errs)
+        out = yaml.safe_load(sp.read_text(encoding="utf-8"))
+        order = [(t["ac"], t["seq"]) for t in out["test_cases"]]
+        assert order == [("HS-01", 1), ("HS-02", 2), ("HS-02", 1),
+                         ("HS-03", 1), ("HS-01", 2)], order
+        validate_spec(out, sp)   # exits on a spec that is out of run order
+    finally:
+        shutil.rmtree(d)
+
+
 def test_apply_patch_writes_nothing_when_any_patch_is_bad():
     import yaml
     d = _tmpdir()
