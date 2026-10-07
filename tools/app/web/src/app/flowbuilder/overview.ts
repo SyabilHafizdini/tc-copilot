@@ -26,7 +26,7 @@ export type Overview = { nodes: OvNode[]; edges: OvEdge[]; flows: OvFlow[]; shar
 export const COL_W = 330
 export const ROW_H = 230
 
-// "FLOW-ROM-SC04" -> "SC04": how a flow is named on a chip
+// "FLOW-DEMO-SC04" -> "SC04": how a flow is named on a chip
 export const shortLabel = (id: string) => id.split('-').pop() || id
 
 /* A note often names its own flow ("Scenario 4 shows ..."). That number is

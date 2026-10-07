@@ -18,14 +18,14 @@ const MODEL: BuilderModel = {
     id: 'US-T', title: 'Apply', status: 'aligned',
     acs: [
       { id: 'AC-1', title: 'Login', text: 'Login opens the Home page.', status: null, tcs: [] },
-      { id: 'AC-2', text: 'The spouse is added.', status: null, tcs: [] },
+      { id: 'AC-2', text: 'The partner is added.', status: null, tcs: [] },
     ],
   }],
   flows: [
     { id: 'FLOW-DMO-SC01', title: 'Citizen couple', status: 'aligned', entry_condition: null,
-      journey: [step('J01', 'AC-1', 'Home shown'), step('J02', 'AC-2', 'Spouse added', 'Pink card')] },
+      journey: [step('J01', 'AC-1', 'Home shown'), step('J02', 'AC-2', 'Partner added', 'Pink card')] },
     { id: 'FLOW-DMO-SC02', title: 'Resident couple', status: 'aligned', entry_condition: null,
-      journey: [step('J01', 'AC-1', 'Home shown'), step('J02', 'AC-2', 'Spouse added', 'Blue card')] },
+      journey: [step('J01', 'AC-1', 'Home shown'), step('J02', 'AC-2', 'Partner added', 'Blue card')] },
   ],
   tcs: {},
 }
@@ -43,7 +43,7 @@ describe('FlowOverviewPage', () => {
     expect(panel()).toHaveTextContent('2 distinct steps, 2 walked by every flow.')
     // a criterion title is shown where the story gives one, else its text
     expect(screen.getByText('Login')).toBeInTheDocument()
-    expect(screen.getByText('The spouse is added.')).toBeInTheDocument()
+    expect(screen.getByText('The partner is added.')).toBeInTheDocument()
     // the shared step lists both data notes with the flow that carries each
     expect(screen.getByText('Pink card')).toBeInTheDocument()
     expect(screen.getByText('Blue card')).toBeInTheDocument()
